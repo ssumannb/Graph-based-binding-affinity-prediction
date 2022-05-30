@@ -31,8 +31,12 @@ class connect2pgSQL():
         return row
 
     def commit(self):
-        self.cursor.commit()
-
+        try:
+            self.cursor.commit()
+            print("<!> commit!")
+        except (Exception, psycopg2.DatabaseError) as e:
+            print("Error in transction Reverting all other operations of a transction ", e)
+            self.db.rollback()
 
 class CRUD(connect2pgSQL):
     def __init__(self):
@@ -58,21 +62,31 @@ class CRUD(connect2pgSQL):
             self.cursor.execute(sql_schema)
             self.cursor.execute(sql)
             self.db.commit()
-        except Exception as e:
+        except (Exception, psycopg2.DatabaseError) as e:
             print("create table error: ", e)
+            self.db.rollback()
 
 
-    def insertDB(self, schema, table, column, data) -> object:
-        sql = " INSERT INTO {schema}.{table}({column}) VALUES ({data});"\
+    def insertDB(self, schema, table, column, data, multiple=False) -> object:
+        if multiple == False:
+            sql = " INSERT INTO {schema}.{table}({column}) VALUES ({data});"\
             .format(schema=schema, table=table, column=column, data=data)
+        else:
+            sql = " INSERT INTO {schema}.{table}({column}) VALUES {data};"\
+            .format(schema=schema, table=table, column=column, data=data)
+
         try:
             self.cursor.execute(sql)
-        except Exception as e:
+        except (Exception, psycopg2.DatabaseError) as e:
             print(sql)
             print("insert DB error: ", e)
+            self.db.rollback()
+
+
 
     def commit(self):
         self.db.commit()
+
 
     def readDB(self, schema, table, column):
         sql = " SELECT {column} from {schema}.{table}"\
@@ -80,8 +94,9 @@ class CRUD(connect2pgSQL):
         try:
             self.cursor.execute(sql)
             result = self.cursor.fetchall()
-        except Exception as e:
+        except (Exception, psycopg2.DatabaseError) as e:
             result = ("read DB error: ", e)
+            self.db.rollback()
 
         print(result)
 
@@ -93,8 +108,9 @@ class CRUD(connect2pgSQL):
         try:
             self.cursor.execute(sql)
             self.db.commit()
-        except Exception as e:
+        except (Exception, psycopg2.DatabaseError) as e:
             print(" update DB error: ", e)
+            self.db.rollback()
 
 
     def deleteDB(self, schema, table, condition):
@@ -104,16 +120,18 @@ class CRUD(connect2pgSQL):
         try:
             self.cursor.execute(sql)
             self.db.commit()
-        except Exception as e:
+        except (Exception, psycopg2.DatabaseError) as e:
             print(" delete DB error: ", e)
+            self.db.rollback()
 
 
     def run_query(self, query):
         try:
             self.cursor.execute(query)
             result = self.cursor.fetchall()
-        except Exception as e:
+        except (Exception, psycopg2.DatabaseError) as e:
             result = ("query error: ", e)
+            self.db.rollback()
 
         return result
 

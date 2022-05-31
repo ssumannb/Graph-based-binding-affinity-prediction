@@ -28,7 +28,7 @@ def extract_list(db:pgDB):
     return db.run_query(query)
 
 
-def no_Folder(org_data_list:pd.DataFrame):
+def _no_Folder(org_data_list:pd.DataFrame):
     result = []
 
     with tqdm(total=len(org_data_list)) as pbar:
@@ -41,7 +41,7 @@ def no_Folder(org_data_list:pd.DataFrame):
     return result
 
 
-def no_lig_file(org_data_list:pd.DataFrame):
+def _no_lig_file(org_data_list:pd.DataFrame):
     result_sdf = []
     result_mol2 = []
 
@@ -62,7 +62,7 @@ def no_lig_file(org_data_list:pd.DataFrame):
     return result_sdf, result_mol2
 
 
-def no_ptn_file(org_data_list:pd.DataFrame):
+def _no_ptn_file(org_data_list:pd.DataFrame):
     result_protein = []
     result_pocket = []
 
@@ -83,7 +83,7 @@ def no_ptn_file(org_data_list:pd.DataFrame):
     return result_protein, result_pocket
 
 
-def empty_lig(org_data_list:pd.DataFrame):
+def _empty_lig(org_data_list:pd.DataFrame):
     result_sdf = []
     result_mol2 = []
 
@@ -114,7 +114,7 @@ def empty_lig(org_data_list:pd.DataFrame):
     return result_sdf, result_mol2
 
 
-def empty_ptn(org_data_list:pd.DataFrame):
+def _empty_ptn(org_data_list:pd.DataFrame):
     result_protein = []
     result_pocket = []
 
@@ -149,11 +149,11 @@ def filtering(src:pd.DataFrame):
     # filtering
     filtered_data = pd.DataFrame()
     filtered_data['pdb_code'] = src['pdb_code']
-    filtered_data['no_folder'] = no_Folder(src)
-    filtered_data['no_ptn_file'], filtered_data['no_pck_file'] = no_ptn_file(src)
-    filtered_data['no_lig_file_sdf'], filtered_data['no_lig_file_mol2'] = no_lig_file(src)
-    filtered_data['empty_ptn_file'], filtered_data['empty_pck_file'] = empty_ptn(src)
-    filtered_data['empty_lig_file_sdf'], filtered_data['empty_lig_file_mol2'] = empty_lig(src)
+    filtered_data['no_folder'] = _no_Folder(src)
+    filtered_data['no_ptn_file'], filtered_data['no_pck_file'] = _no_ptn_file(src)
+    filtered_data['no_lig_file_sdf'], filtered_data['no_lig_file_mol2'] = _no_lig_file(src)
+    filtered_data['empty_ptn_file'], filtered_data['empty_pck_file'] = _empty_ptn(src)
+    filtered_data['empty_lig_file_sdf'], filtered_data['empty_lig_file_mol2'] = _empty_lig(src)
 
     filtered_data['available'] = True
 
@@ -167,27 +167,26 @@ def filtering(src:pd.DataFrame):
                       (filtered_data['empty_lig_file_mol2'] == True), 'available'] = False
     filtered_data.loc[(filtered_data['empty_pck_file'] == True) &
                       (filtered_data['empty_pck_file'] == True), 'available'] = False
-    filtered_data.to_csv(f"./check_inavailability_{time.strftime('%Y-%m-%d', time.localtime(time.time()))}.csv")
+    filtered_data.to_csv(f"./Report/check_inavailability_{time.strftime('%Y-%m-%d', time.localtime(time.time()))}.csv")
 
     return filtered_data
 
 
-
 if __name__ == '__main__':
     db = pgDB.CRUD()
-    org_data = pd.DataFrame()
-
     extracted_list = extract_list(db)
+    org_data = pd.DataFrame()
 
     org_data['pdb_code'] = [x[0] for i, x in enumerate(extracted_list)]
     org_data['subset'] = [x[1] for i, x in enumerate(extracted_list)]
+
     path_list = []
-    for i, s in enumerate(org_data['subset']):
-        if s == 'general':
+    for i, type in enumerate(org_data['subset']):
+        if type == 'general':
             path_list.append(gPATH)
-        elif s == 'refined':
+        elif type == 'refined':
             path_list.append(rPATH)
-        elif s == 'coreset':
+        elif type == 'coreset':
             path_list.append(cPATH)
 
     org_data['path'] = path_list
@@ -230,22 +229,3 @@ if __name__ == '__main__':
         db.insertDB(schema='pdbbind', table='available', column=', '.join(filtered_data2db), data=query_values, multiple=True)
         db.commit()
 
-
-    # query
-    # unit = 200
-    # loop = int(len(filtered_data2db) / unit) + 1
-    #
-    # for i in range(loop):
-    #     i_start = i * unit
-    #     i_end = i_start + unit
-    #
-    #     tmp = filtered_data2db[i_start:i_end]
-    #
-    #     query_values = []
-    #     for idx, row in tmp.iterrows():
-    #         query = f"('{row['pdb_code']}', '{row['available']}', " \
-    #                 f"'{row['inavailability_type']}')"
-    #         query_values.append(query)
-    #     query_values = ', '.join(query_values)
-        # db.insertDB(schema='pdbbind', table='available', column=', '.join(filtered_data2db), data=val4query, multiple=True)
-        # db.commit()

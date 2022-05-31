@@ -26,7 +26,6 @@ def general_refine(db:pgDB):
 
     data_df['path'] = path_list
 
-
     # loop
     unit = 200
     loop = int(len(data_df) / unit) + 1
@@ -42,12 +41,13 @@ def general_refine(db:pgDB):
 
         filtered_data2db = pd.DataFrame(filtered_data[['pdb_code', 'available']], columns=['pdb_code', 'available'])
         filtered_data2db['inavailability_type'] = None
+        filtered_data2db['subset'] = org_data_subset['subset']
 
         idx_invailability = filtered_data2db[filtered_data2db['available'] == False].index
 
         for _, idx in enumerate(idx_invailability):
             row_val = filtered_data.loc[idx]
-            inav_type = row_val.index[row_val == False].tolist()
+            inav_type = row_val.index[row_val == True].tolist()
 
             if 'available' in inav_type:
                 inav_type.remove('available')
@@ -58,7 +58,7 @@ def general_refine(db:pgDB):
         query_values = []
         for idx, row in filtered_data2db.iterrows():
             query = f"('{row['pdb_code']}', '{row['available']}', " \
-                    f"'{row['inavailability_type']}')"
+                    f"'{row['inavailability_type']}', '{row['subset']}')"
             query_values.append(query)
         query_values = ', '.join(query_values)
 
@@ -71,17 +71,19 @@ def coreset(db:pgDB):
 
     data_df['pdb_code'] = [x[0] for i, x in enumerate(data_list)]
     data_df['path'] = cPATH
+    data_df['subset'] = 'coreset'
 
     filtered_data = filtering(data_df)
-    filtered_data2db = pd.DataFrame(filtered_data[['pdb_code', 'available']], column=['pdb_code', 'available'])
+    filtered_data2db = pd.DataFrame(filtered_data[['pdb_code', 'available']])
+    filtered_data2db.columns = ['pdb_code', 'available']
     filtered_data2db['inavailability_type'] = None
-    filtered_data2db['subset'] = 'coreset'
+    # filtered_data2db['subset'] = 'coreset'
 
     idx_inavailability = filtered_data2db[filtered_data2db['available']==False].index
 
     for idx, row in enumerate(idx_inavailability):
         row_val = filtered_data.loc[idx]
-        inav_type = row_val.index[row_val == False].toList()
+        inav_type = row_val.index[row_val == True].tolist()
 
         if 'available' in inav_type:
             inav_type.remove('available')
@@ -98,10 +100,11 @@ def coreset(db:pgDB):
 
     query_values = ', '.join(query_values)
 
-    db.insertDB(schema='pdbbind', table='available', column=', '.join(filtered_data2db), data=query_values)
+    db.insertDB(schema='pdbbind', table='available',
+                column=', '.join(filtered_data2db), data=query_values, multiple=True)
 
 
 if __name__ == '__main__':
     db = pgDB.CRUD()
-   # general_refine(db)
+    general_refine(db)
     coreset(db)

@@ -1,5 +1,6 @@
 import os
 import time
+import sys
 import pandas as pd
 import numpy as np
 
@@ -159,7 +160,10 @@ def filtering(src:pd.DataFrame):
                       (filtered_data['empty_lig_file_mol2'] == True), 'available'] = False
     filtered_data.loc[(filtered_data['empty_pck_file'] == True) &
                       (filtered_data['empty_pck_file'] == True), 'available'] = False
-    filtered_data.to_csv(f"./Report/check_inavailability_{time.strftime('%Y-%m-%d', time.localtime(time.time()))}.csv")
+    filtered_data['subset'] = src['subset']
+
+    caller = sys._getframe(1).f_code.co_name
+    filtered_data.to_csv(f"./Report/check_inavailability_({caller})-{time.strftime('%Y-%m-%d', time.localtime(time.time()))}.csv")
 
     return filtered_data
 

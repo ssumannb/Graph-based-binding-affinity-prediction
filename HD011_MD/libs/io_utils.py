@@ -12,8 +12,8 @@ from rdkit import Chem
 from Bio.PDB import *
 from scipy.spatial import distance_matrix
 
-from libs.preprocess import main as pp_main
-import HD101_DB.DataBase.connection_postgresql as pgDB
+from preprocess import main as pp_main
+import HD011_DB.DataBase.connection_postgresql as pgDB
 
 # 원소기호 40개가 정의된 변수
 ATOM_VOCAB = [

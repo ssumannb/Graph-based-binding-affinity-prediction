@@ -77,6 +77,7 @@ class CRUD(connect2pgSQL):
 
         try:
             self.cursor.execute(sql)
+            self.db.commit()
         except (Exception, psycopg2.DatabaseError) as e:
             print(sql)
             print("insert DB error: ", e)
@@ -101,9 +102,9 @@ class CRUD(connect2pgSQL):
         print(result)
 
 
-    def updateDB(self, schema, table, column, value, condition):
-        sql = " UPDATE {schema}.{table} SET {column}=\'{value}\' WHERE {column}=\'{condition}\'"\
-            .format(schema=schema, table=table, column=column, value=value, condition=condition)
+    def updateDB(self, schema, table, column, value, c_column, condition):
+        sql = " UPDATE {schema}.{table} SET {column}=\'{value}\' WHERE {c_column}=\'{condition}\'"\
+            .format(schema=schema, table=table, column=column, c_column=c_column, value=value, condition=condition)
 
         try:
             self.cursor.execute(sql)

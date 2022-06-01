@@ -10,10 +10,6 @@ from tqdm import tqdm
 
 import DataBase.connection_postgresql as pgDB
 
-gPATH = 'D:/Data/PDBbind/raw_data/PDBbind_v2020/'
-rPATH = 'D:/Data/PDBbind/raw_data/PDBbind_v2020_refined/'
-cPATH = 'D:/Data/PDBbind/raw_data/CASF-2016/coreset/'
-
 def extract_list(db:pgDB, columns:list, schema:str, table:str):
     columns = ', '.join(columns)
 

@@ -1,3 +1,7 @@
+'''
+filtering code about pdbbind general, refined, coreset data
+and load filtered data to postgresql database
+'''
 import pandas as pd
 
 import DataBase.connection_postgresql as pgDB
@@ -6,7 +10,7 @@ from filtering_utils import extract_list
 from filtering_utils import filtering
 
 gPATH = 'D:/Data/PDBbind/raw_data/PDBbind_v2020/'
-rPATH = 'D:/Data/PDBbind/raw_data/PDBbind_v2020_refined/'
+rPATH = 'D:/Data/PDBbind/raw_data/refined-set_v2020/'
 cPATH = 'D:/Data/PDBbind/raw_data/CASF-2016/coreset/'
 
 def general_refine(db:pgDB):
@@ -25,9 +29,10 @@ def general_refine(db:pgDB):
             path_list.append(rPATH)
 
     data_df['path'] = path_list
+    data_df = data_df[data_df['subset']=='refined'] #
 
     # loop
-    unit = 200
+    unit = 1000
     loop = int(len(data_df) / unit) + 1
 
     for i in range(loop):
@@ -39,9 +44,8 @@ def general_refine(db:pgDB):
         org_data_subset = data_df[i_start:i_end]
         filtered_data = filtering(org_data_subset)
 
-        filtered_data2db = pd.DataFrame(filtered_data[['pdb_code', 'available']], columns=['pdb_code', 'available'])
+        filtered_data2db = pd.DataFrame(filtered_data[['pdb_code', 'available','subset']], columns=['pdb_code', 'available', 'subset'])
         filtered_data2db['inavailability_type'] = None
-        filtered_data2db['subset'] = org_data_subset['subset']
 
         idx_invailability = filtered_data2db[filtered_data2db['available'] == False].index
 
@@ -62,7 +66,8 @@ def general_refine(db:pgDB):
             query_values.append(query)
         query_values = ', '.join(query_values)
 
-        db.insertDB(schema='pdbbind', table='available', column=', '.join(filtered_data2db), data=query_values, multiple=True)
+        db.insertDB(schema='pdbbind', table='available',
+                    column=', '.join(filtered_data2db), data=query_values, multiple=True)
 
 
 def coreset(db:pgDB):
@@ -74,14 +79,14 @@ def coreset(db:pgDB):
     data_df['subset'] = 'coreset'
 
     filtered_data = filtering(data_df)
-    filtered_data2db = pd.DataFrame(filtered_data[['pdb_code', 'available']])
-    filtered_data2db.columns = ['pdb_code', 'available']
+    filtered_data2db = pd.DataFrame(filtered_data[['pdb_code', 'available','subset']])
+    filtered_data2db.columns = ['pdb_code', 'available','subset']
     filtered_data2db['inavailability_type'] = None
     # filtered_data2db['subset'] = 'coreset'
 
     idx_inavailability = filtered_data2db[filtered_data2db['available']==False].index
 
-    for idx, row in enumerate(idx_inavailability):
+    for _, idx in enumerate(idx_inavailability):
         row_val = filtered_data.loc[idx]
         inav_type = row_val.index[row_val == True].tolist()
 
@@ -89,10 +94,7 @@ def coreset(db:pgDB):
             inav_type.remove('available')
         filtered_data2db.loc[idx, 'inavailability_type'] = ', '.join(inav_type)
 
-    del filtered_data
-
     query_values = []
-
     for idx, row in filtered_data2db.iterrows():
         query = f"('{row['pdb_code']}', '{row['available']}', " \
                 f"'{row['inavailability_type']}', '{row['subset']}')"
@@ -104,7 +106,9 @@ def coreset(db:pgDB):
                 column=', '.join(filtered_data2db), data=query_values, multiple=True)
 
 
+
+
 if __name__ == '__main__':
     db = pgDB.CRUD()
     general_refine(db)
-    coreset(db)
+    # coreset(db)

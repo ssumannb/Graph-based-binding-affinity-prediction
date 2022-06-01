@@ -29,7 +29,7 @@ class connect2pgSQL:
 
 
     def execute(self, query, args={}):
-        self.cursor.exectue(query, args)
+        self.cursor.execute(query, args)
         row = self.cursor.fetchall()
 
         return row

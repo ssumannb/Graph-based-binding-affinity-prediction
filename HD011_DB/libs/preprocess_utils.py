@@ -1,7 +1,11 @@
 import dgl
 import torch
+import numpy as np
 
 from rdkit import Chem
+from Bio.PDB import PDBParser, Select, PDBIO
+from scipy.spatial import distance_matrix
+
 
 import warnings
 warnings.filterwarnings(action='ignore')
@@ -92,6 +96,49 @@ class Graph():
         tmp_graph.edata['e_ij'] = torch_bond_feature
 
         self.graph = tmp_graph
+        return self.graph
+
+
+def select_residue(ligand, pdb):
+    parser = PDBParser()
+    # if not os.path.exists(pdb):
+    #     return None
+    structure = parser.get_structure('protein', pdb)
+    ligand_positions = ligand.GetConformer().GetPositions()
+
+    # Get distance between ligand positions (N_ligand, 3) and
+    # residue positions (N_residue, 3) for each residue
+    # only select residue with minimum distance of it is smaller than 5A
+    # → 각각의 잔기에 대해 리간드 위치, 잔기 위치간의 거리를 측정하여 최소 거리가 5A보다 짧은 잔기만을 선택
+
+    class ResidueSelect(Select):
+        # 단백질을 구성하는 아미노산 잔기들 각각에 대한 리간드와의 거리 측정 후 선택/제외 결정
+        def accept_residue(self, residue):
+            residue_positions = np.array([np.array(list(atom.get_vector())) \
+                                          for atom in residue.get_atoms() if 'H' not in atom.get_id()])
+            if len(residue_positions.shape) < 2:
+                print(residue)
+                return 0
+            min_dis = np.min(distance_matrix(residue_positions, ligand_positions))
+
+            if min_dis < 5.0:
+                return 1
+            else:
+                return 0
+
+    io = PDBIO()
+    io.set_structure(structure)
+    pdbid = pdb.split('/')[-1].split('_')[0]
+    fn = f'D:/Data/PDBbind/preprocessed/HD011-training/residues/{pdbid}_residues.pdb'
+    fn_infold = pdb.replace('pocket','residues')
+    # fn = f'BS_tmp_{str(np.random.randint(0, 1000000, 1)[0])}.pdb'
+    io.save(fn, ResidueSelect())
+    io.save(fn_infold, ResidueSelect())
+
+    m2 = Chem.MolFromPDBFile(fn)
+    # os.system('del ' + fn)
+
+    return m2
 
 
 if __name__ == '__main__':

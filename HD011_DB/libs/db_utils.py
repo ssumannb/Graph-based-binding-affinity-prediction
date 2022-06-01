@@ -1,6 +1,8 @@
 import psycopg2
+from neo4j import GraphDatabase
 
-class connect2pgSQL():
+
+class connect2pgSQL:
     def __init__(self, config=None):
         if not config:
             self.config = {
@@ -20,15 +22,18 @@ class connect2pgSQL():
                                    password=self.config['password'])
         self.cursor = self.db.cursor()
 
+
     def __del__(self):
         self.db.close()
         self.cursor.close()
+
 
     def execute(self, query, args={}):
         self.cursor.exectue(query, args)
         row = self.cursor.fetchall()
 
         return row
+
 
     def commit(self):
         try:
@@ -38,7 +43,33 @@ class connect2pgSQL():
             print("Error in transction Reverting all other operations of a transction ", e)
             self.db.rollback()
 
-class CRUD(connect2pgSQL):
+
+class Connect2neo4j:
+    def __init__(self):
+        self.config = dict(IP_ADDRESS='localhost',
+              BOLT_PORT = '7687',
+              USER_NAME = 'neo4j',
+              PASSWORD = '0000')
+        self.driver = GraphDatabase.driver(
+            uri=f"bolt://{self.config['IP_ADDRESS']}:{self.config['BOLT_PORT']}",
+            auth=(self.config['USER_NAME'], self.config['PASSWORD']))
+
+
+    def close(self):
+        self.driver.close()
+
+
+    def run_query(self, message):
+        with self.driver.session() as session:
+            session.write_transaction(self._create_and_return, message)
+
+
+    def _create_and_return(self, tx, message):
+        result = tx.run(message)
+        print(result)
+
+
+class CRUD_pgSQL(connect2pgSQL):
     def __init__(self):
         super().__init__()
 
@@ -84,7 +115,6 @@ class CRUD(connect2pgSQL):
             self.db.rollback()
 
 
-
     def commit(self):
         self.db.commit()
 
@@ -126,20 +156,24 @@ class CRUD(connect2pgSQL):
             self.db.rollback()
 
 
-    def run_query(self, query):
-        try:
-            self.cursor.execute(query)
-            result = self.cursor.fetchall()
-        except (Exception, psycopg2.DatabaseError) as e:
-            result = ("query error: ", e)
-            self.db.rollback()
-
-        return result
-
 
 if __name__ == "__main__":
-    db = CRUD()
-    db.insertDB(schema='myschema',table='table',colum='ID',data='유동적변경')
-    print(db.readDB(schema='myschema',table='table',colum='ID'))
-    db.updateDB(schema='myschema',table='table',colum='ID', value='와우',condition='유동적변경')
-    db.deleteDB(schema='myschema',table='table',condition ="id != 'd'")
+    # neo4j
+    # information for access
+    config = dict(IP_ADDRESS='localhost',
+                  BOLT_PORT='7687',
+                  USER_NAME='neo4j',
+                  PASSWORD='0000')
+
+    complexGraph = Connect2neo4j(config)
+    complex = '3i3b', '2010  B8LFD6  BETA-GALACTOSIDASE'
+    complexGraph.print_creation(complex)
+
+    complexGraph.close()
+
+    # postgreSQL
+    db = CRUD_pgSQL()
+    db.insertDB(schema='myschema', table='table', colum='ID', data='유동적변경')
+    print(db.readDB(schema='myschema', table='table', colum='ID'))
+    db.updateDB(schema='myschema', table='table', colum='ID', value='와우', condition='유동적변경')
+    db.deleteDB(schema='myschema', table='table', condition="id != 'd'")

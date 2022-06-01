@@ -1,5 +1,10 @@
+'''
+input: coreset_index
+to pdbbind.coreset table
+'''
 import pandas as pd
-import connection_postgresql as pgDB
+
+from libs.db_utils import connect2pgSQL as pgDB
 
 if __name__ == '__main__':
     db = pgDB.CRUD()

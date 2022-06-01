@@ -159,7 +159,11 @@ def filtering(src:pd.DataFrame):
     filtered_data['subset'] = src['subset']
 
     caller = sys._getframe(1).f_code.co_name
-    filtered_data.to_csv(f"./Report/check_inavailability_({caller})-{time.strftime('%Y-%m-%d', time.localtime(time.time()))}.csv")
+    f_name = f"./Report/check_inavailability_({caller})-{time.strftime('%Y-%m-%d', time.localtime(time.time()))}.csv"
+    if os.path.isfile(f_name):
+        filtered_data.to_csv(f_name, mode='a', header=False, index=False)
+    else:
+        filtered_data.to_csv(f_name)
 
     return filtered_data
 

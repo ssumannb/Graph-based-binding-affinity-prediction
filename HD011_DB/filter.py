@@ -4,10 +4,9 @@ and load filtered data to postgresql database
 '''
 import pandas as pd
 
-import DataBase.connection_postgresql as pgDB
-
-from filtering_utils import extract_list
-from filtering_utils import filtering
+from libs.filtering_utils import extract_list
+from libs.filtering_utils import filtering
+from libs.db_utils import connect2pgSQL as pgDB
 
 gPATH = 'D:/Data/PDBbind/raw_data/PDBbind_v2020/'
 rPATH = 'D:/Data/PDBbind/raw_data/refined-set_v2020/'
@@ -104,8 +103,6 @@ def coreset(db:pgDB):
 
     db.insertDB(schema='pdbbind', table='available',
                 column=', '.join(filtered_data2db), data=query_values, multiple=True)
-
-
 
 
 if __name__ == '__main__':

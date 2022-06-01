@@ -7,7 +7,7 @@ import re
 from tqdm import tqdm
 from rdkit import Chem
 
-from connection_neo4j import Connect2neo4j
+from libs.db_utils import Connect2neo4j
 
 class DataBase:
     def __init__(self, filename, raw_file_path):

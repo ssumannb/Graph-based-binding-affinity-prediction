@@ -51,15 +51,6 @@ class Graph():
         return atom_feature
 
     def _extract_bond_feature(self, bond):
-        # bt = bond.GetBondType()
-        # bond_feature_old = [
-        #     bt == Chem.rdchem.BondType.SINGLE,
-        #     bt == Chem.rdchem.BondType.DOUBLE,
-        #     bt == Chem.rdchem.BondType.TRIPLE,
-        #     bt == Chem.rdchem.BondType.AROMATIC,
-        #     bond.GetIsConjugated(),
-        #     bond.IsInRing()
-        # ]
         bond_feature = self._tf_encoding(bond.GetBondType(), self.BOND_VOCAB)
         bond_feature.append(bond.GetIsConjugated())
         bond_feature.append(bond.IsInRing())

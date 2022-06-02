@@ -2,7 +2,7 @@ import psycopg2
 from neo4j import GraphDatabase
 
 
-class connect2pgSQL:
+class Connect2pgSQL:
     def __init__(self, config=None):
         if not config:
             self.config = {
@@ -46,36 +46,6 @@ class connect2pgSQL:
             self.db.rollback()
 
 
-class Connect2neo4j:
-    def __init__(self):
-        self.config = dict(IP_ADDRESS='localhost',
-              BOLT_PORT = '7687',
-              USER_NAME = 'neo4j',
-              PASSWORD = '0000')
-        self.driver = GraphDatabase.driver(
-            uri=f"bolt://{self.config['IP_ADDRESS']}:{self.config['BOLT_PORT']}",
-            auth=(self.config['USER_NAME'], self.config['PASSWORD']))
-
-
-    def close(self):
-        self.driver.close()
-
-
-    def run_query(self, message):
-        with self.driver.session() as session:
-            session.write_transaction(self._create_and_return, message)
-
-
-    def _create_and_return(self, tx, message):
-        result = tx.run(message)
-        print(result)
-
-
-class CRUD_pgSQL(connect2pgSQL):
-    def __init__(self):
-        super().__init__()
-
-
     def createDB(self, schema, table, structure):
         # check schema first!
         sql_schema = " CREATE SCHEMA IF NOT EXISTS {schema} AUTHORIZATION {username} "\
@@ -117,10 +87,6 @@ class CRUD_pgSQL(connect2pgSQL):
             self.db.rollback()
 
 
-    def commit(self):
-        self.db.commit()
-
-
     def readDB(self, schema, table, column):
         sql = " SELECT {column} from {schema}.{table}"\
             .format(column=column, schema=schema, table=table)
@@ -159,6 +125,33 @@ class CRUD_pgSQL(connect2pgSQL):
 
 
 
+class Connect2neo4j:
+    def __init__(self):
+        self.config = dict(IP_ADDRESS='localhost',
+              BOLT_PORT = '7687',
+              USER_NAME = 'neo4j',
+              PASSWORD = '0000')
+        self.driver = GraphDatabase.driver(
+            uri=f"bolt://{self.config['IP_ADDRESS']}:{self.config['BOLT_PORT']}",
+            auth=(self.config['USER_NAME'], self.config['PASSWORD']))
+
+
+    def close(self):
+        self.driver.close()
+
+
+    def run_query(self, message):
+        with self.driver.session() as session:
+            session.write_transaction(self._create_and_return, message)
+
+
+    def _create_and_return(self, tx, message):
+        result = tx.run(message)
+        print(result)
+
+
+
+
 if __name__ == "__main__":
     # neo4j
     # information for access
@@ -174,7 +167,7 @@ if __name__ == "__main__":
     complexGraph.close()
 
     # postgreSQL
-    db = CRUD_pgSQL()
+    db = Connect2pgSQL()
     db.insertDB(schema='myschema', table='table', colum='ID', data='유동적변경')
     print(db.readDB(schema='myschema', table='table', colum='ID'))
     db.updateDB(schema='myschema', table='table', colum='ID', value='와우', condition='유동적변경')

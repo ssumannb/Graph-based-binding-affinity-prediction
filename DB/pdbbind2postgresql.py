@@ -10,7 +10,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.cell import range_boundaries
 from copy import copy
 
-from libs.db_utils import connect2pgSQL as pg
+from libs.db_utils import Connect2pgSQL as pg
 
 fPATH = "D:/Project/HD011/HD011_DB/DataBase/PDBbind_19444_for_postgresql.xlsx"
 

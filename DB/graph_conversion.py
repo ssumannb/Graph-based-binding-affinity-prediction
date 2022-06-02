@@ -5,7 +5,7 @@ from rdkit import Chem
 from tqdm import tqdm
 
 from libs.preprocess_utils import Graph, select_residue
-from libs.db_utils import connect2pgSQL as pgDB
+from libs.db_utils import Connect2pgSQL as pgDB
 
 def convert_dataset(db:pgDB, query, experiment_type='training'):
 

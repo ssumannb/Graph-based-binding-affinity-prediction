@@ -4,7 +4,7 @@ to pdbbind.coreset table
 '''
 import pandas as pd
 
-from libs.db_utils import connect2pgSQL as pgDB
+from libs.db_utils import Connect2pgSQL as pgDB
 
 if __name__ == '__main__':
     db = pgDB.CRUD()

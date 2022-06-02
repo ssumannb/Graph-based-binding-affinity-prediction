@@ -8,7 +8,7 @@ from rdkit import Chem
 from Bio.PDB import *
 from tqdm import tqdm
 
-from db_utils import connect2pgSQL as pgDB
+from db_utils import Connect2pgSQL as pgDB
 
 def extract_list(db:pgDB, columns:list, schema:str, table:str):
     columns = ', '.join(columns)

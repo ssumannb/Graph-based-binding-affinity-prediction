@@ -6,7 +6,7 @@ import pandas as pd
 
 from libs.filtering_utils import extract_list
 from libs.filtering_utils import filtering
-from libs.db_utils import CRUD_pgSQL as pgDB
+from libs.db_utils import Connect2pgSQL as pgDB
 
 gPATH = 'D:/Data/PDBbind/raw_data/PDBbind_v2020/'
 rPATH = 'D:/Data/PDBbind/raw_data/refined-set_v2020/'

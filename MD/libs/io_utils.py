@@ -13,7 +13,7 @@ from Bio.PDB import *
 from scipy.spatial import distance_matrix
 
 from preprocess import main as pp_main
-from HD011_DB.libs.db_utils import connect2pgSQL as pgDB
+from DB.libs.db_utils import connect2pgSQL as pgDB
 
 # 원소기호 40개가 정의된 변수
 ATOM_VOCAB = [

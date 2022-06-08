@@ -18,7 +18,6 @@ from torch.utils.tensorboard import SummaryWriter
 from libs.io_utils import get_complex_list
 from libs.io_utils import Complex_Dataset
 from libs.io_utils import collate_func
-# from libs.io_utils import collate_func_eTest
 
 from libs.models import Model_vectorization
 
@@ -26,10 +25,8 @@ from libs.utils import str2bool
 from libs.utils import set_seed
 from libs.utils import set_device
 from libs.utils import evaluate_regression
-from libs.utils import evaluate_regression_test
 from libs.utils import EarlyStopping
 
-from test import test
 
 # 오류 출력 명확하게 하기 위해 환경변수 설정
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -38,14 +35,14 @@ writer = SummaryWriter()
 def mlflow_decorator(func):
     def decorated(*args, **kwargs):
         mlflow.log_param('max epoch', args[0].num_epochs)
-        mlflow.log_param('batch_size', args[0].batch_size)
+        mlflow.log_param('batch size', args[0].batch_size)
         mlflow.log_param('num workers', args[0].num_workers)
         mlflow.log_param('optimizer', args[0].optimizer)
         mlflow.log_params({'interaction type': args[0].interaction_type,
                            'number of graph learning layer': args[0].num_g_layers,
                            'number of interaction calculating layer': args[0].num_d_layers,
-                           'number of hidden dimension of graph layers': args[0].hidden_dim_g,
-                           'number of hidden dimension of dense layers': args[0].hidden_dim_d,
+                           'dimension of graph layers': args[0].hidden_dim_g,
+                           'dimension of interaction calculating layers': args[0].hidden_dim_d,
                            'readout method': args[0].readout,
                            'dropout probability': args[0].dropout_prob,
                            })
@@ -62,21 +59,17 @@ def preparation(args, mlflow):
     if args.cross_validation == False:
         dataset_list = get_complex_list(
             data_seed=args.seed,
-            frac=[0.7, 0.2, 0.1],
-            cv=args.cross_validation,
-            af_type = args.af_type
+            frac=[0.7, 0.2, 0.1]
         )
     else:
         dataset_list = get_complex_list(
             data_seed=args.seed,
-            frac=[0.2, 0.2, 0.2, 0.2, 0.2],
-            cv=args.cross_validation,
-            af_type=args.af_type
+            frac=[0.2, 0.2, 0.2, 0.2, 0.2]
         )
 
     dataset = []
     for i, _ in enumerate(dataset_list):
-        dataset.append(Complex_Dataset(splitted_set=dataset_list[i], is_coreset=False))
+        dataset.append(Complex_Dataset(splitted_set=dataset_list[i]))
 
     dataset_loader = []
     for i, _ in enumerate(dataset):
@@ -92,10 +85,9 @@ def preparation(args, mlflow):
         mlflow.log_param('data_length_train','cv')
         mlflow.log_param('data_length_valid','cv')
         mlflow.log_param('data_length_test', 'cv')
-        # mlflow.log_param('data_length_eTest', dataset_eTest.__len__())
 
     return_value = dataset_loader
-    del dataset_list, dataset
+    #del dataset_list
 
     return return_value
 
@@ -146,6 +138,7 @@ def train(args, data_loader, mlflow):
     set_seed(seed=args.seed)
     device = set_device(use_gpu=args.use_gpu, gpu_idx=args.gpu_idx)
 
+    # divide dataloader
     train_loader = data_loader[0]
     valid_loader = data_loader[1]
 
@@ -160,15 +153,26 @@ def train(args, data_loader, mlflow):
     model.to(device)
 
     # optimizer and learning rate scheduler setting
-    if args.optimizer.lower() == 'adam':
+    opt = args.optimizer.lower()
+    if opt == 'adam':
         optimizer = torch.optim.AdamW(model.parameters(),
-                                        lr=args.lr,
-                                        weight_decay=args.weight_decay,)
+                                      lr=args.lr,
+                                      weight_decay=args.weight_decay, )
+    elif opt == 'adadelta':
+        optimizer = torch.optim.Adadelta(model.parameters(),
+                                         lr=args.lr,
+                                         weight_decay=args.weight_decay, )
+    elif opt == 'nadam':
+        optimizer = torch.optim.NAdam(model.parameters(),
+                                      lr=args.lr,
+                                      weight_decay=args.weight_decay, )
 
+    # set a scheduler
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer=optimizer,
                                                 step_size=40,
                                                 gamma=0.1,)
 
+    # load saved model if applicable
     if args.load_saved_model == True:
         saved_model = torch.load('./checkpoint.pt')
         starting_point = int(saved_model['epoch'])
@@ -177,8 +181,7 @@ def train(args, data_loader, mlflow):
         model.eval()
 
 
-
-    # loss function
+    # define loss function
     loss_fn = nn.MSELoss()
 
     # set EarlyStopping class
@@ -361,7 +364,7 @@ def train(args, data_loader, mlflow):
         df_result = pd.DataFrame(dict_result).transpose()
         df_result.columns = ['TRAIN', 'VALID']
 
-        print(tabulate(df_result, headers='keys', tablefmt='psql', showindex=True))
+        print(f"\n{tabulate(df_result, headers='keys', tablefmt='psql', showindex=True)}")
 
         if early_stopping.early_stop:
             mlflow.log_param('Early Stop epoch', epoch)
@@ -386,16 +389,16 @@ if __name__ == '__main__':
     ## hyper-parameters for model structure
     parser.add_argument('--interaction_type', type=str, default='vect', help='Type of interaction layer: dist, vect')
     parser.add_argument('--num_g_layers', type=int, default=4, help='Number of graph layers for ligand featurization')
-    parser.add_argument('--num_d_layers', type=int, default=4, help='Number of dense layers for ligand featurization')
-    parser.add_argument('--hidden_dim_g', type=int, default=64, help='Dimension of hidden features')
-    parser.add_argument('--hidden_dim_d', type=int, default=64, help='Dimension of hidden features')
-    parser.add_argument('--readout', type=str, default='mean', help='Readout method, Options: sum, mean, ...')
+    parser.add_argument('--num_d_layers', type=int, default=5, help='Number of dense layers for ligand featurization')
+    parser.add_argument('--hidden_dim_g', type=int, default=96, help='Dimension of hidden features')
+    parser.add_argument('--hidden_dim_d', type=int, default=128, help='Dimension of hidden features')
+    parser.add_argument('--readout', type=str, default='sum', help='Readout method, Options: sum, mean, ...')
     parser.add_argument('--dropout_prob', type=float, default=0.0, help='Probability of dropout on node features')
 
     # vectorization layer : {num_workers - 4 / batch_size - 8}
     # distance layer : {num_workers - 1 / batch_size - 4 }
     ## hyper-parameters for model training
-    parser.add_argument('--optimizer', type=str, default='adam', help='Options: adam, sgd, ...')
+    parser.add_argument('--optimizer', type=str, default='nadam', help='Options: adam, sgd, ...')
     parser.add_argument('--num_epochs', type=int, default=999, help='Number of training epochs')
     parser.add_argument('--num_workers', type=int, default=8, help='Number of workers to run dataloaders')
     parser.add_argument('--batch_size', type=int, default=64, help='Number of samples in a single batch')
@@ -404,8 +407,8 @@ if __name__ == '__main__':
     parser.add_argument('--cross_validation', type=bool, default=False, help='Cross validate a model')
 
     parser.add_argument('--save_model', type=str2bool, default=True, help='Whether to save model')
-    parser.add_argument('--save_path', type=str, default='../BA_prediction_ignore/save/', help='Path for saving model')
-    parser.add_argument('--save_loader', type=str, default='../BA_prediction_ignore/data/loader/', help='Path for saving data loader')
+    # parser.add_argument('--save_path', type=str, default='../BA_prediction_ignore/save/', help='Path for saving model')
+    # parser.add_argument('--save_loader', type=str, default='../BA_prediction_ignore/data/loader/', help='Path for saving data loader')
     parser.add_argument('--load_saved_model', type=bool, default=False)
 
     args = parser.parse_args()
@@ -417,8 +420,8 @@ if __name__ == '__main__':
         print(k, ": ", v)
 
     # mlflow experiment setting
-    version = 2  # 초기 버전 : vectorization 기반 모델
-    experiment_name = f'BA_prediction({version})'
+    version = 1  # 초기 버전 : vectorization 기반 모델
+    experiment_name = f'HD011({version})'
     mlflow.set_experiment(experiment_name)
 
     with mlflow.start_run() as run:
@@ -440,11 +443,11 @@ if __name__ == '__main__':
              'dropout probability'
             '''
 
-            hyperparams_list = [[64, 'adam', 4, 3, 64, 64, 'sum', 0.0],
-                                [64, 'adam', 4, 3, 64, 64, 'mean', 0.0],
-                                [64, 'adam', 4, 4, 64, 64, 'sum', 0.0],
-                                [64, 'adam', 4, 3, 64, 64, 'sum', 0.2],
-                                [64, 'adam', 4, 3, 64, 128, 'sum', 0.2]]
+            # hyperparams_list = [[64, 'adam', 4, 3, 64, 64, 'sum', 0.0],
+            #                     [64, 'adam', 4, 3, 64, 64, 'mean', 0.0],
+            #                     [64, 'adam', 4, 4, 64, 64, 'sum', 0.0],
+            #                     [64, 'adam', 4, 3, 64, 64, 'sum', 0.2],
+            #                     [64, 'adam', 4, 3, 64, 128, 'sum', 0.2]]
 
 
             # for i, _ in enumerate(iter_loader):
@@ -468,6 +471,6 @@ if __name__ == '__main__':
             #     writer.close()
             #
             #     args.mlflow_runname = mlflow.runName
-        test(args, data_loader_all[2], mlflow)
-        test(args, data_loader_all[3], mlflow)
+        # test(args, data_loader_all[2], mlflow)
+        # test(args, data_loader_all[3], mlflow)
 

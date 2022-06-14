@@ -5,12 +5,14 @@ from tabulate import tabulate
 import mlflow
 from itertools import chain
 from collections import defaultdict
+import matplotlib.pyplot as plt
 
 import os
 import torch
 import torch.nn as nn
 import pandas as pd
 import numpy as np
+import contextlib
 
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -19,7 +21,7 @@ from libs.io_utils import get_complex_list
 from libs.io_utils import Complex_Dataset
 from libs.io_utils import collate_func
 
-from libs.models import Model_vectorization
+from libs.models import Model
 
 from libs.utils import str2bool
 from libs.utils import set_seed
@@ -32,40 +34,65 @@ from libs.utils import EarlyStopping
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 writer = SummaryWriter()
 
-def mlflow_decorator(func):
-    def decorated(*args, **kwargs):
-        mlflow.log_param('max epoch', args[0].num_epochs)
-        mlflow.log_param('batch size', args[0].batch_size)
-        mlflow.log_param('num workers', args[0].num_workers)
-        mlflow.log_param('optimizer', args[0].optimizer)
-        mlflow.log_params({'interaction type': args[0].interaction_type,
-                           'number of graph learning layer': args[0].num_g_layers,
-                           'number of interaction calculating layer': args[0].num_d_layers,
-                           'dimension of graph layers': args[0].hidden_dim_g,
-                           'dimension of interaction calculating layers': args[0].hidden_dim_d,
-                           'readout method': args[0].readout,
-                           'dropout probability': args[0].dropout_prob,
-                           })
-        func(*args, **kwargs)
-        writer.flush()
-        writer.close()
-        mlflow.end_run()
+# # mlflow_decorator : 데코레이터
+# # 데코레이터 이후에 나오는 것을 데코레이터의 첫번째 파라미터로 하고 데코레이터의 결과 값을 반환하게 하는 문법적 설탕이라고 보면 된다.
+# def mlflow_decorator(func):
+#     def decorated(*args, **kwargs):
+#         # mlflow experiment setting
+#         version = 2  # 초기 버전 : vectorization 기반 모델
+#         experiment_name = f'HD011({version})'
+#         mlflow.set_experiment(experiment_name)
+#
+#         with mlflow.start_run() as run:
+#             mlflow.log_param('max epoch', args[0].num_epochs)
+#             mlflow.log_param('batch size', args[0].batch_size)
+#             mlflow.log_param('num workers', args[0].num_workers)
+#             mlflow.log_param('optimizer', args[0].optimizer)
+#             mlflow.log_params({'interaction type': args[0].interaction_type,
+#                                'number of graph learning layer': args[0].num_g_layers,
+#                                'number of interaction calculating layer': args[0].num_d_layers,
+#                                'dimension of graph layers': args[0].hidden_dim_g,
+#                                'dimension of interaction calculating layers': args[0].hidden_dim_d,
+#                                'readout method': args[0].readout,
+#                                'dropout probability': args[0].dropout_prob,
+#                                })
+#             func(*args, **kwargs)
+#             writer.flush()
+#             writer.close()
+#
+#         mlflow.end_run()
+#
+#     return decorated
+#
+#
+# @contextlib.contextmanager
+# def mlflow_handler():
+#     # mlflow experiment setting
+#     experiment_name = ''
+#     mlflow.set_experiment(experiment_name)
+#
+#     with mlflow.start_run() as run:
+#         mlflow.log_param('batch size', args[0].batch_size)
+#         mlflow.log_param('num workers', args[0].num_workers)
+#         mlflow.log_param('optimizer', args[0].optimizer)
+#         mlflow.log_params({'interaction type': args[0].interaction_type,
+#                            'number of graph learning layer': args[0].num_g_layers,
+#                            'number of interaction calculating layer': args[0].num_d_layers,
+#                            'dimension of graph layers': args[0].hidden_dim_g,
+#                            'dimension of interaction calculating layers': args[0].hidden_dim_d,
+#                            'readout method': args[0].readout,
+#                            'dropout probability': args[0].dropout_prob,
+#                            })
+#         yield mlflow
+#         # yield에서 원하는 작업을 수행하고, 해당 작업에서 반환값을 얻으려면 yield + 변수
+#
 
-    return decorated
 
-
-def preparation(args, mlflow):
+def prepare_data(args, mlflow):
     # Prepare datasets and dataloaders
-    if args.cross_validation == False:
-        dataset_list = get_complex_list(
-            data_seed=args.seed,
-            frac=[0.7, 0.2, 0.1]
-        )
-    else:
-        dataset_list = get_complex_list(
-            data_seed=args.seed,
-            frac=[0.2, 0.2, 0.2, 0.2, 0.2]
-        )
+    dataset_list = get_complex_list(
+        data_seed=args.seed,
+        frac=[0.7, 0.2, 0.1])
 
     dataset = []
     for i, _ in enumerate(dataset_list):
@@ -76,24 +103,85 @@ def preparation(args, mlflow):
         dataset_loader.append(DataLoader(dataset=dataset[i], batch_size=args.batch_size, shuffle=True,
                                     num_workers=args.num_workers, collate_fn=collate_func))
 
-    if args.cross_validation == False:
-        mlflow.log_param('data_length_train', dataset[0].__len__())
-        mlflow.log_param('data_length_valid', dataset[1].__len__())
-        mlflow.log_param('data_length_test', dataset[2].__len__())
+    mlflow.log_param('data_length_train', dataset[0].__len__())
+    mlflow.log_param('data_length_valid', dataset[1].__len__())
+    mlflow.log_param('data_length_test', dataset[2].__len__())
 
-    else:
-        mlflow.log_param('data_length_train','cv')
-        mlflow.log_param('data_length_valid','cv')
-        mlflow.log_param('data_length_test', 'cv')
-
-    return_value = dataset_loader
+    # return_value = dataset_loader
     del dataset_list, dataset
 
-    return return_value
+    return dataset_loader
 
 
-def batch_iter(data_loader, pbar, model, optimizer, loss_fn, device):
-    loss_train = 0
+def prepare_model(args, mlflow):
+    # set device and random seed for model
+    mlflow.log_params({'interaction type': args.interaction_type,
+                       'num of graph learning layer': args.num_g_layers,
+                       'num of interaction calculating layer': args.num_d_layers,
+                       'dim of graph layers': args.hidden_dim_g,
+                       'dim of interaction calculating layers': args.hidden_dim_d,
+                       'readout method': args.readout,
+                       'dropout probability': args.dropout_prob,
+                       })
+
+    set_seed(seed=args.seed)
+    device = set_device(use_gpu=args.use_gpu, gpu_idx=args.gpu_idx)
+
+    # Construct model and load trained parameters if it is possible
+    starting_point = 0
+    model = Model(num_g_layers=args.num_g_layers,
+                  num_d_layers=args.num_d_layers,
+                  hidden_dim_g=args.hidden_dim_g,
+                  hidden_dim_d=args.hidden_dim_d,
+                  readout=args.readout,
+                  dropout_prob=args.dropout_prob, )
+    model.to(device)
+
+    # optimizer and learning rate scheduler setting
+    opt = args.optimizer.lower()
+    if opt == 'adam':
+        optimizer = torch.optim.AdamW(model.parameters(),
+                                      lr=args.lr,
+                                      weight_decay=args.weight_decay, )
+    elif opt == 'adadelta':
+        optimizer = torch.optim.Adadelta(model.parameters(),
+                                         lr=args.lr,
+                                         weight_decay=args.weight_decay, )
+    elif opt == 'nadam':
+        optimizer = torch.optim.NAdam(model.parameters(),
+                                      lr=args.lr,
+                                      weight_decay=args.weight_decay, )
+    elif opt == 'radam':
+        optimizer = torch.optim.RAdam(model.parameters(),
+                                      lr=args.lr,
+                                      weight_decay=args.weight_decay, )
+    elif opt == 'adamax':
+        optimizer = torch.optim.RAdam(model.parameters(),
+                                      lr=args.lr,
+                                      weight_decay=args.weight_decay, )
+
+    # set a scheduler
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer=optimizer,
+                                                step_size=40,
+                                                gamma=0.1, )
+
+    # load saved model if applicable
+    if args.load_saved_model == True:
+        saved_model = torch.load('./model.pth')
+        model = saved_model
+        model.eval()
+
+    # define loss function
+    loss_fn = nn.MSELoss()
+
+    # set EarlyStopping class
+    early_stopping = EarlyStopping(verbose=True)
+
+    return model, optimizer, loss_fn, scheduler, early_stopping, device
+
+
+def learning(data_loader, pbar, model, optimizer, loss_fn, device):
+    loss_sum = 0
     y_list = []
     pred_list = []
 
@@ -112,228 +200,137 @@ def batch_iter(data_loader, pbar, model, optimizer, loss_fn, device):
 
         output = model(graph_p, graph_l)
 
-        pred = output.squeeze()
         y_list.append(y)
         pred_list.append(output)
 
+        pred = output.squeeze()
         loss = loss_fn(pred, y)
-        loss.backward()
 
-        # loss function을 효율적으로 최소화할 수 있도록 파라미터 수
-        optimizer.step()
+        if model.training == True:
+            loss.backward()
+            optimizer.step()
 
-        loss_train += loss.detach().cpu().numpy()
-
-        # time.sleep(0.1)
+        loss_sum += loss.detach().cpu().numpy()
 
         del graph_p, graph_l, output
 
-    return y_list, pred_list, loss_train
+    return model, optimizer, loss_sum, y_list, pred_list
 
 
-@mlflow_decorator
-def train(args, data_loader, mlflow):
+def evaluate(data_loader, pbar, model, device):
+    y_list = []
+    pred_list = []
 
-    # Set random seeds and device
-    set_seed(seed=args.seed)
-    device = set_device(use_gpu=args.use_gpu, gpu_idx=args.gpu_idx)
+    for i, batch in enumerate(data_loader):
+        pbar.update(1)
+
+        graph_p, graph_l, y = batch[0], batch[1], batch[2]
+
+        graph_p = graph_p.to(device)
+        graph_l = graph_l.to(device)
+
+        y = y.to(device)
+        y = y.float()
+
+        output = model(graph_p, graph_l)
+
+        y_list.append(y)
+        pred_list.append(output)
+
+        pred = output.squeeze()
+
+        del graph_p, graph_l, output
+
+    return y_list, pred_list
+
+
+def print_metric(metrics, mlflow, title):
+    rounded_train_metrics = list(map(lambda x: round(x, 3), metrics))
+    dict_result = {'MSE': rounded_train_metrics[0],
+                     'MAE': rounded_train_metrics[1],
+                     'RMSE': rounded_train_metrics[2],
+                     'R2': rounded_train_metrics[3]}
+
+    mlflow.log_metrics(dict_result)
+
+    df_result = pd.DataFrame(dict_result).transpose()
+    df_result.columns = [title]
+
+    print(tabulate(df_result, headers='keys', tablefmt='psql', showindex=True))
+
+
+def draw_loss_curve(*Losses):
+    plt.figure(figsize=(10, 5))
+    plt.title('loss curve')
+    for loss in Losses:
+        plt.plot(loss, lable=f'{Losses[0]}')
+
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.save('./loss_curve.png')
+
+
+def train(args, data_loader, mlflow, train_configs):
+    mlflow.log_param('Type', 'Train')
+
+    model = train_configs[0]
+    optimizer = train_configs[1]
+    loss_fn = train_configs[2]
+    scheduler = train_configs[3]
+    early_stopping = train_configs[4]
+    device = train_configs[5]
 
     # divide dataloader
     train_loader = data_loader[0]
     valid_loader = data_loader[1]
 
-    # Construct model and load trained parameters if it is possible
-    starting_point = 0
-    model = Model_vectorization(num_g_layers=args.num_g_layers,
-                                num_d_layers=args.num_d_layers,
-                               hidden_dim_g=args.hidden_dim_g,
-                               hidden_dim_d=args.hidden_dim_d,
-                               readout=args.readout,
-                               dropout_prob=args.dropout_prob,)
-    model.to(device)
+    train_losses = ['train']
+    valid_losses = ['valid']
 
-    # optimizer and learning rate scheduler setting
-    opt = args.optimizer.lower()
-    if opt == 'adam':
-        optimizer = torch.optim.AdamW(model.parameters(),
-                                      lr=args.lr,
-                                      weight_decay=args.weight_decay, )
-    elif opt == 'adadelta':
-        optimizer = torch.optim.Adadelta(model.parameters(),
-                                         lr=args.lr,
-                                         weight_decay=args.weight_decay, )
-    elif opt == 'nadam':
-        optimizer = torch.optim.NAdam(model.parameters(),
-                                      lr=args.lr,
-                                      weight_decay=args.weight_decay, )
-
-    # set a scheduler
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer=optimizer,
-                                                step_size=40,
-                                                gamma=0.1,)
-
-    # load saved model if applicable
-    if args.load_saved_model == True:
-        saved_model = torch.load('./model.pth')
-        # starting_point = int(saved_model['epoch'])
-        # model.load_state_dict(saved_model['model_state_dict'])
-        # optimizer.load_state_dict(saved_model['optimizer_state_dict'])
-        model = saved_model
-        model.eval()
-
-
-    # define loss function
-    loss_fn = nn.MSELoss()
-
-    # set EarlyStopping class
-    early_stopping = EarlyStopping(verbose=True)
-
-    train_result_list = []
-    valid_result_list = []
-
-    # training start
     for epoch in range(args.num_epochs):
-        epoch += starting_point
         print(f'\n{epoch+1} EPOCH'.zfill(3))
 
         # set model to training state
         model.train()
 
-        # variables for training
-        if args.cross_validation == True:
-            num_batches = 0
-            for i, item in enumerate(train_loader):
-                num_batches += len(item)
-        else:
-            num_batches = len(train_loader)
-
-        loss_train = 0
-        y_list = []
-        pred_list = []
-        # time.sleep(0.1)
-
-        with tqdm(total=num_batches) as pbar:
+        # Training
+        num_train_batch = len(train_loader)
+        with tqdm(total=num_train_batch) as pbar:
             pbar.set_description("> TRAIN")
-            for _, fold in enumerate(train_loader):
-                for i, batch in enumerate(fold):
-                    pbar.update(1)
-
-                    optimizer.zero_grad()
-
-                    graph_p, graph_l, y = batch[0], batch[1], batch[2]
-
-                    graph_p = graph_p.to(device)
-                    graph_l = graph_l.to(device)
-
-                    y = y.to(device)
-                    y = y.float()
-
-                    output = model(graph_p, graph_l)
-
-                    pred = output.squeeze()
-                    y_list.append(y)
-                    pred_list.append(output)
-
-                    loss = loss_fn(pred, y)
-                    loss.backward()
-
-                    # loss function을 효율적으로 최소화할 수 있도록 파라미터 수
-                    optimizer.step()
-
-                    loss_train += loss.detach().cpu().numpy()
-
-                    # time.sleep(0.1)
-
-                    del graph_p, graph_l, output
-
+            model, optimizer, loss_train, y_list, pred_list \
+                = learning(train_loader, pbar, model, optimizer, loss_fn, device)
             scheduler.step()
 
-            loss_train /= num_batches
+            loss_train /= num_train_batch
+            train_losses.append(loss_train)
             writer.add_scalar("Loss/Train", loss_train, epoch + 1)
             mlflow.log_metric(key="Loss/Train", value=loss_train, step=epoch)
-
-            train_metrics = evaluate_regression(y_list=y_list,
-                                                pred_list=pred_list)
+            train_metrics = evaluate_regression(y_list=y_list,pred_list=pred_list)
 
 
-        # set model to validation state and stop the gradient calculiation
-        model.eval()
-        with torch.no_grad():
-
-            # Validation start for identifying the early stop point
-            loss_valid = 0
-            num_batches = len(valid_loader)
-            y_list = []
-            pred_list = []
-
-            with tqdm(total=num_batches) as pbar:
+        # Validation
+        # set model as validation state and stop the gradient calculiation
+        num_valid_batch = len(valid_loader)
+        with tqdm(total=num_valid_batch) as pbar:
+            model.eval()
+            with torch.no_grad():
                 pbar.set_description('> VALID')
-                for i, batch in enumerate(valid_loader):
-                    pbar.update(1)
+                model, optimizer, loss_valid, y_list, pred_list \
+                    = learning(valid_loader, pbar, model, optimizer, loss_fn, device)
 
-                    graph_p, graph_l, y = batch[0], batch[1], batch[2]
-                    if args.interaction_type == 'dist':
-                        coord = np.array(batch[3])
-
-                    graph_p = graph_p.to(device)
-                    graph_l = graph_l.to(device)
-
-                    y = y.to(device)
-                    y = y.float()
-
-                    if args.interaction_type == 'dist':
-                        output = model(graph_p, graph_l, coord)
-                    else:
-                        output = model(graph_p, graph_l)
-
-                    pred = output.squeeze()
-                    y_list.append(y)
-                    pred_list.append(output)
-
-                    loss = loss_fn(pred, y)
-                    loss_valid += loss.detach().cpu().numpy()
-
-                    # time.sleep(0.1)
-
-                    del graph_p, graph_l, output
-
-                loss_valid /= num_batches
-
+                loss_valid /= num_valid_batch
+                valid_losses.append(loss_valid)
                 writer.add_scalar("Loss/Valid", loss_valid, epoch + 1)
                 mlflow.log_metric(key="Loss/Valid", value=loss_valid, step=epoch)
+                valid_metrics = evaluate_regression(y_list=y_list, pred_list=pred_list)
 
-                valid_metrics = evaluate_regression(y_list=y_list,
-                                                    pred_list=pred_list)
+        early_stopping(loss_valid, model, optimizer, epoch, mlflow)
 
-                early_stopping(loss_valid, model, optimizer, epoch, mlflow)
-
-
-        # REGRESSION     EVALUATION CRITERIA(3): mse, rmse, r2
-        rounded_train_metrics = list(map(lambda x: round(x, 3), train_metrics))
-        rounded_valid_metrics = list(map(lambda x: round(x, 3), valid_metrics))
-
-        dict_result_train = {'MSE': rounded_train_metrics[0],
-                               'MAE': rounded_train_metrics[1],
-                               'RMSE': rounded_train_metrics[2],
-                               'R2': rounded_train_metrics[3]}
-
-        dict_result_valid = {'MSE': rounded_valid_metrics[0],
-                               'MAE': rounded_valid_metrics[1],
-                               'RMSE': rounded_valid_metrics[2],
-                               'R2': rounded_valid_metrics[3]}
-
-        dict_result = defaultdict(list)
-
-        for k, v in chain(dict_result_train.items(), dict_result_valid.items()):
-            dict_result[k].append(v)
-
-        # mlflow.log_metrics(dict_result_train)
-        mlflow.log_metrics(dict_result_valid)
-
-        df_result = pd.DataFrame(dict_result).transpose()
-        df_result.columns = ['TRAIN', 'VALID']
-
-        print(tabulate(df_result, headers='keys', tablefmt='psql', showindex=True))
+        # regression evaluation criteria(3): mse, mae, rmse, r2
+        print_metric(train_metrics, mlflow, title='Train')
+        print_metric(valid_metrics, mlflow, title='Valid')
+        draw_loss_curve(train_losses, valid_losses)
 
         if early_stopping.early_stop:
             mlflow.log_param('Early Stop epoch', epoch)
@@ -341,81 +338,28 @@ def train(args, data_loader, mlflow):
             break
 
 
-def test(args, test_loader, mlflow):
-    device = set_device(use_gpu=args.use_gpu, gpu_idx=args.gpu_idx)
-    model = Model_vectorization(num_g_layers=args.num_g_layers,
-                                num_d_layers=args.num_d_layers,
-                                hidden_dim_g=args.hidden_dim_g,
-                                hidden_dim_d=args.hidden_dim_d,
-                                readout=args.readout,
-                                dropout_prob=args.dropout_prob, )
+def test(args, test_loader, mlflow, test_configs):
+    mlflow.log_param('Type', 'Test')
+
+    model = test_configs[0]
+    device = test_configs[5]
+
     model.to(device)
-
-    # optimizer and learning rate scheduler setting
-    opt = args.optimizer.lower()
-    if opt == 'adam':
-        optimizer = torch.optim.AdamW(model.parameters(),
-                                      lr=args.lr,
-                                      weight_decay=args.weight_decay, )
-    elif opt == 'adadelta':
-        optimizer = torch.optim.Adadelta(model.parameters(),
-                                         lr=args.lr,
-                                         weight_decay=args.weight_decay, )
-    elif opt == 'nadam':
-        optimizer = torch.optim.NAdam(model.parameters(),
-                                      lr=args.lr,
-                                      weight_decay=args.weight_decay, )
-
-    # set a scheduler
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer=optimizer,
-                                                step_size=40,
-                                                gamma=0.1, )
 
     # load saved model
     trained_model = torch.load('./model.pth')
     model = trained_model
-    # model.load_state_dict(trained_model['model_state_dict'])
-    # optimizer.load_state_dict(trained_model['optimizer_state_dict'])
     model.eval()
 
-    model.eval()
     with torch.no_grad():
 
         # test start for identifying the early stop point
-        loss_valid = 0
         num_batches = len(test_loader)
-        y_list = []
-        pred_list = []
 
         with tqdm(total=num_batches) as pbar:
             pbar.set_description('> TEST')
-            for i, batch in enumerate(test_loader):
-                pbar.update(1)
-
-                graph_p, graph_l, y = batch[0], batch[1], batch[2]
-                if args.interaction_type == 'dist':
-                    coord = np.array(batch[3])
-
-                graph_p = graph_p.to(device)
-                graph_l = graph_l.to(device)
-
-                y = y.to(device)
-                y = y.float()
-
-                if args.interaction_type == 'dist':
-                    output = model(graph_p, graph_l, coord)
-                else:
-                    output = model(graph_p, graph_l)
-
-                pred = output.squeeze()
-                y_list.append(y)
-                pred_list.append(output)
-
-                del graph_p, graph_l, output
-
-            loss_valid /= num_batches
-            test_metrics = evaluate_regression(y_list=y_list,
-                                                pred_list=pred_list)
+            y_list, pred_list = evaluate(test_loader, pbar, model, device)
+            test_metrics = evaluate_regression(y_list=y_list, pred_list=pred_list)
 
     # REGRESSION     EVALUATION CRITERIA(3): mse, rmse, r2
     rounded_test_metrics = list(map(lambda x: round(x, 3), test_metrics))
@@ -439,16 +383,7 @@ def test(args, test_loader, mlflow):
     print(tabulate(df_result, headers='keys', tablefmt='psql', showindex=True))
 
 
-def argument_print(args):
-    print("Arguments")
-
-    print('------------------------------------------------------')
-    for k, v in vars(args).items():
-        print(k, ": ", v)
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-
+def argument_define(parser):
     ## required conditions for conducting experiment
     parser.add_argument('--job_title', type=str, default='train', help='Job titile of this execution')
     parser.add_argument('--use_gpu', type=str, default='1', help='whether to use GPU device')
@@ -456,10 +391,9 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=999, help='Seed for all stochastic component and data sampling')
 
     ## hyper-parameters for dataset
-    parser.add_argument('--dataset_name', type=str, default='PDBbind 2020v',
-                        help='What dataset to use for model development')
+    parser.add_argument('--dataset_name', type=str, default='PDBbind 2020v', help='What dataset to use for model development')
     parser.add_argument('--split_method', type=str, default='random', help='How to split dataset')
-    parser.add_argument('--af_type', type=str, default='kdki', help='Type of binding affinity value')
+    # parser.add_argument('--af_type', type=str, default='kdki', help='Type of binding affinity value')
 
     ## hyper-parameters for model structure
     parser.add_argument('--interaction_type', type=str, default='vect', help='Type of interaction layer: dist, vect')
@@ -482,23 +416,44 @@ if __name__ == '__main__':
     parser.add_argument('--cross_validation', type=bool, default=False, help='Cross validate a model')
 
     parser.add_argument('--save_model', type=str2bool, default=True, help='Whether to save model')
-    # parser.add_argument('--save_path', type=str, default='../BA_prediction_ignore/save/', help='Path for saving model')
-    # parser.add_argument('--save_loader', type=str, default='../BA_prediction_ignore/data/loader/', help='Path for saving data loader')
-    parser.add_argument('--load_saved_model', type=bool, default=True)
+    parser.add_argument('--load_saved_model', type=bool, default=False)
 
     args = parser.parse_args()
+
+    return args
+
+
+def argument_print(args):
+    print("Arguments")
+
+    print('------------------------------------------------------')
+    for k, v in vars(args).items():
+        print(k, ": ", v)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    args = argument_define(parser)
     argument_print(args)
 
-    # mlflow experiment setting
-    version = 2  # 초기 버전 : vectorization 기반 모델
-    experiment_name = f'HD011({version})'
+    experiment_name = 'HD011'
     mlflow.set_experiment(experiment_name)
 
     with mlflow.start_run() as run:
-        data_loader_all = preparation(args, mlflow)
+        mlflow.log_param('batch size', args.batch_size)
+        mlflow.log_param('num workers', args.num_workers)
+
+        data_loader_all = prepare_data(args, mlflow)
         train_data_loader = data_loader_all[0], data_loader_all[1]
         test_data_loader = data_loader_all[2]
 
-        # train(args, train_data_loader, mlflow)
-        test(args, test_data_loader, mlflow)
+        model_configs = prepare_model(args, mlflow)
+        train(args=args, data_loader=train_data_loader, mlflow=mlflow, train_configs=model_configs)
+        test(args=args, test_loader=test_data_loader, mlflow=mlflow, test_configs=model_configs)
+
+        writer.flush()
+        writer.close()
+
+    mlflow.end_run()
+
 

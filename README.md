@@ -53,7 +53,7 @@ numpy, pandas, rdkit, deepchem, dgl, sklearn
 
 ## Files
 ##### 📁 DB
-: DB folder includes codes to interact with database  
+: DB folder includes codes related to data    
 ##### 📁 MD
 : MD folder includes all experiment codes about prediction model  
 - 📁 libs : library files for experiment  

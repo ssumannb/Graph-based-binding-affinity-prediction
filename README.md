@@ -4,6 +4,8 @@ Project name : HD011
 ## Description
 <span style="font-size:50%">본 프로젝트는 단백질-리간드 복합체의 binding affinity를 예측하는 인공지능 기반 모델을 개발하는 프로젝트입니다.  
 해당 모델은 신약 개발 단계 중 초기 단계인 Hit discovery에서 Target 단백질에 대해 대규모 화합물 라이브러리를 가상 스크리닝을 위해 사용할 수 있습니다.  </span>
+This project is the development project that AI-based binding affinity prediction model for the protein-ligand complex.  
+This prediction model can be used for virtual screening of large chemical libraries for target proteins in a hit discovery step that is early-stage on drug discovery.  
 
 ## Environment
 OS : window  

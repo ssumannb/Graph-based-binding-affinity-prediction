@@ -34,59 +34,6 @@ from libs.utils import EarlyStopping
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 writer = SummaryWriter()
 
-# # mlflow_decorator : 데코레이터
-# # 데코레이터 이후에 나오는 것을 데코레이터의 첫번째 파라미터로 하고 데코레이터의 결과 값을 반환하게 하는 문법적 설탕이라고 보면 된다.
-# def mlflow_decorator(func):
-#     def decorated(*args, **kwargs):
-#         # mlflow experiment setting
-#         version = 2  # 초기 버전 : vectorization 기반 모델
-#         experiment_name = f'HD011({version})'
-#         mlflow.set_experiment(experiment_name)
-#
-#         with mlflow.start_run() as run:
-#             mlflow.log_param('max epoch', args[0].num_epochs)
-#             mlflow.log_param('batch size', args[0].batch_size)
-#             mlflow.log_param('num workers', args[0].num_workers)
-#             mlflow.log_param('optimizer', args[0].optimizer)
-#             mlflow.log_params({'interaction type': args[0].interaction_type,
-#                                'number of graph learning layer': args[0].num_g_layers,
-#                                'number of interaction calculating layer': args[0].num_d_layers,
-#                                'dimension of graph layers': args[0].hidden_dim_g,
-#                                'dimension of interaction calculating layers': args[0].hidden_dim_d,
-#                                'readout method': args[0].readout,
-#                                'dropout probability': args[0].dropout_prob,
-#                                })
-#             func(*args, **kwargs)
-#             writer.flush()
-#             writer.close()
-#
-#         mlflow.end_run()
-#
-#     return decorated
-#
-#
-# @contextlib.contextmanager
-# def mlflow_handler():
-#     # mlflow experiment setting
-#     experiment_name = ''
-#     mlflow.set_experiment(experiment_name)
-#
-#     with mlflow.start_run() as run:
-#         mlflow.log_param('batch size', args[0].batch_size)
-#         mlflow.log_param('num workers', args[0].num_workers)
-#         mlflow.log_param('optimizer', args[0].optimizer)
-#         mlflow.log_params({'interaction type': args[0].interaction_type,
-#                            'number of graph learning layer': args[0].num_g_layers,
-#                            'number of interaction calculating layer': args[0].num_d_layers,
-#                            'dimension of graph layers': args[0].hidden_dim_g,
-#                            'dimension of interaction calculating layers': args[0].hidden_dim_d,
-#                            'readout method': args[0].readout,
-#                            'dropout probability': args[0].dropout_prob,
-#                            })
-#         yield mlflow
-#         # yield에서 원하는 작업을 수행하고, 해당 작업에서 반환값을 얻으려면 yield + 변수
-#
-
 
 def prepare_data(args, mlflow):
     # Prepare datasets and dataloaders
@@ -360,26 +307,8 @@ def test(args, test_loader, mlflow, test_configs):
             y_list, pred_list = evaluate(test_loader, pbar, model, device)
             test_metrics = evaluate_regression(y_list=y_list, pred_list=pred_list)
 
-    # REGRESSION     EVALUATION CRITERIA(3): mse, rmse, r2
-    rounded_test_metrics = list(map(lambda x: round(x, 3), test_metrics))
+    print_metric(test_metrics, mlflow, title='Test')
 
-    dict_result_test = {'MSE': rounded_test_metrics[0],
-                         'MAE': rounded_test_metrics[1],
-                         'RMSE': rounded_test_metrics[2],
-                         'R2': rounded_test_metrics[3]}
-
-    dict_result = defaultdict(list)
-
-    for k, v in chain(dict_result_test.items()):
-        dict_result[k].append(v)
-
-    # mlflow.log_metrics(dict_result_train)
-    mlflow.log_metrics(dict_result_test)
-
-    df_result = pd.DataFrame(dict_result).transpose()
-    df_result.columns = ['TEST']
-
-    print(tabulate(df_result, headers='keys', tablefmt='psql', showindex=True))
 
 
 def argument_define(parser):
@@ -403,9 +332,9 @@ def argument_define(parser):
     parser.add_argument('--readout', type=str, default='sum', help='Readout method, Options: sum, mean, ...')
     parser.add_argument('--dropout_prob', type=float, default=0.0, help='Probability of dropout on node features')
 
-    # vectorization layer : {num_workers - 4 / batch_size - 8}
-    # distance layer : {num_workers - 1 / batch_size - 4 }
-    ## hyper-parameters for model training
+    # hyper-parameters for model training
+    ## vectorization layer : {num_workers - 4 / batch_size - 8}
+    ## distance layer : {num_workers - 1 / batch_size - 4 }
     parser.add_argument('--optimizer', type=str, default='nadam', help='Options: adam, sgd, ...')
     parser.add_argument('--num_epochs', type=int, default=999, help='Number of training epochs')
     parser.add_argument('--num_workers', type=int, default=8, help='Number of workers to run dataloaders')

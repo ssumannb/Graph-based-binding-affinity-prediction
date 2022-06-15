@@ -18,7 +18,7 @@ Framework : Pytorch 1.10.1
 numpy, pandas, rdkit, deepchem, dgl, sklearn  
 
 
-## details
+## Details
 #### 1. model input
 입력 데이터로 사용되는 데이터는 단백질-리간드 복합체의 구조 정보가 포함된 데이터로, 복합체의 binding pose를 얻기 위한 사전 Docking 작업이 필요합니다.  
 입력 형태는 단백질 데이터의 경우 pdb format, 리간드 데이터의 경우 sdf 또는 mol2 format의 데이터를 사용합니다.  

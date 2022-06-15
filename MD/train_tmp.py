@@ -253,22 +253,22 @@ def print_metric(metrics, mlflow, title):
 
     mlflow.log_metrics(dict_result)
 
-    df_result = pd.DataFrame(dict_result).transpose()
+    df_result = pd.DataFrame(dict_result, index=[0]).transpose()
     df_result.columns = [title]
 
-    print(tabulate(df_result, headers='keys', tablefmt='psql', showindex=True))
+    print(f"\n{tabulate(df_result, headers='keys', tablefmt='psql', showindex=True)}")
 
 
 def draw_loss_curve(*Losses):
     plt.figure(figsize=(10, 5))
     plt.title('loss curve')
     for loss in Losses:
-        plt.plot(loss, lable=f'{Losses[0]}')
+        plt.plot(loss, label=f'{Losses[0]}')
 
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
-    plt.save('./loss_curve.png')
+    plt.savefig('./loss_curve.png')
 
 
 def train(args, data_loader, mlflow, train_configs):
@@ -308,6 +308,7 @@ def train(args, data_loader, mlflow, train_configs):
             mlflow.log_metric(key="Loss/Train", value=loss_train, step=epoch)
             train_metrics = evaluate_regression(y_list=y_list,pred_list=pred_list)
 
+        print_metric(train_metrics, mlflow, title='Train')
 
         # Validation
         # set model as validation state and stop the gradient calculiation
@@ -325,17 +326,15 @@ def train(args, data_loader, mlflow, train_configs):
                 mlflow.log_metric(key="Loss/Valid", value=loss_valid, step=epoch)
                 valid_metrics = evaluate_regression(y_list=y_list, pred_list=pred_list)
 
-        early_stopping(loss_valid, model, optimizer, epoch, mlflow)
-
-        # regression evaluation criteria(3): mse, mae, rmse, r2
-        print_metric(train_metrics, mlflow, title='Train')
         print_metric(valid_metrics, mlflow, title='Valid')
-        draw_loss_curve(train_losses, valid_losses)
+        early_stopping(loss_valid, model, optimizer, epoch, mlflow)
 
         if early_stopping.early_stop:
             mlflow.log_param('Early Stop epoch', epoch)
             print("Early stopping")
             break
+
+    draw_loss_curve(train_losses, valid_losses)
 
 
 def test(args, test_loader, mlflow, test_configs):

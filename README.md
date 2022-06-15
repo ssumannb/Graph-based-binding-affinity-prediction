@@ -57,9 +57,9 @@ numpy, pandas, rdkit, deepchem, dgl, sklearn
 ##### 📁 MD
 : MD folder includes all experiment codes about prediction model  
 - 📁 libs : library files for experiment  
-- train.py  
-- test.py  
-- (prediction.py)  
+- train.py : files for training  
+- test.py : files for testing  
+- (prediction.py) : files for predicting   
 
 
 ## Usage

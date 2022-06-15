@@ -24,10 +24,13 @@ numpy, pandas, rdkit, deepchem, dgl, sklearn
 입력 형태는 단백질 데이터의 경우 pdb format, 리간드 데이터의 경우 sdf 또는 mol2 format의 데이터를 사용합니다.  
 #### 2. model architecture 
 예측 모델은 그래프 기반의 딥러닝 회귀 모델입니다.  
+
 **모델 구성**  
 - 입력 데이터 전처리를 진행하는 Graph converting part  
 - 변환된 그래프의 특징을 학습하는 Graph learning layers  
 - 학습된 그래프 특징에서 binding affinity 값을 예측하는 Affinity calculation layers  
+![image](https://user-images.githubusercontent.com/86610517/173760137-10cfff36-dd2d-4e1d-9caa-51ef6a588346.png)
+
 
 ##### 2-1. Graph converting part
 단백질/리간드 데이터를 atom-level에서 graph로 각각 변환하는 작업을 진행합니다.
@@ -35,14 +38,15 @@ numpy, pandas, rdkit, deepchem, dgl, sklearn
 리간드 물질의 경우 구성하고 있는 모든 원자들을 그래프로 변환합니다.
 
 ##### 2-2. Graph learning part  
+단백질/리간드 그래프의 특징을 그래프 기반 레이어를 통해 학습하는 작업을 진행합니다.  
 변환된 단백질/리간드 그래프는 각각 네트워크로 전달되어 학습됩니다.  
 - 단백질 그래프는 Graph-convolution layer(GCN)로 구성된 네트워크를 통해 학습됩니다.  
 - 리간드 그래프는 Graph-attention layer(GAT)로 구성된 네트워크를 통해 학습됩니다.  
-단백질의 경우 
-
 
 ##### 2-3. Affinity calculation part
-
+단백질/리간드 특징으로 fully-connected 레이어를 통해 binding affinity를 예측하는 작업을 진행합니다.  
+학습된 각각의 그래프 특징들은 벡터화되어 summation 후 fully-connected layer에 전달됩니다.
+마지막 layer의 output이 단백질-리간드 복합체의 binding aiffinity 값 입니다.  
 
 ## Files
 각 파일들의 역할

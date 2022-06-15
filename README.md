@@ -29,6 +29,7 @@ numpy, pandas, rdkit, deepchem, dgl, sklearn
 - 입력 데이터 전처리를 진행하는 Graph converting part  
 - 변환된 그래프의 특징을 학습하는 Graph learning layers  
 - 학습된 그래프 특징에서 binding affinity 값을 예측하는 Affinity calculation layers  
+
 ![image](https://user-images.githubusercontent.com/86610517/173760137-10cfff36-dd2d-4e1d-9caa-51ef6a588346.png)
 
 

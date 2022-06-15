@@ -1,18 +1,13 @@
-import time
 import argparse
 from tqdm import tqdm
 from tabulate import tabulate
 import mlflow
-from itertools import chain
-from collections import defaultdict
 import matplotlib.pyplot as plt
 
 import os
 import torch
 import torch.nn as nn
 import pandas as pd
-import numpy as np
-import contextlib
 
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter

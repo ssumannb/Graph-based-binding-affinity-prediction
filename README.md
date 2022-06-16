@@ -33,12 +33,6 @@ This prediction model can be used for virtual screening of large chemical librar
 
 
 ## Details
-#### Model input
-Input data is the data including the structure information of the protein-ligand complex.  
-The docking has to be preprocessed on each protein-ligand pair to obtain the binding pose of the complex.  
-The input format must be PDB format in case of the protein data and SDF or MOL2 format in case of the ligand.  
-
-
 #### Model architecture 
 예측 모델은 그래프 기반의 딥러닝 회귀 모델입니다.  
 - 입력 데이터 전처리를 진행하는 Graph converting part  
@@ -47,6 +41,9 @@ The input format must be PDB format in case of the protein data and SDF or MOL2 
 
 ![image](https://user-images.githubusercontent.com/86610517/173760137-10cfff36-dd2d-4e1d-9caa-51ef6a588346.png)
 
+
+#### Model input
+Input data is the data including the structure information of the protein-ligand complex. The docking has to be preprocessed on each protein-ligand pair to obtain the binding pose of the complex. The input format must be PDB format in case of the protein data and SDF or MOL2 format in case of the ligand.  
 
 ##### 1. Graph converting part
 단백질/리간드 데이터를 atom-level에서 graph로 각각 변환하는 작업을 진행합니다.

@@ -2,7 +2,6 @@ import argparse
 from tqdm import tqdm
 from tabulate import tabulate
 import mlflow
-import matplotlib.pyplot as plt
 
 import os
 import torch
@@ -23,7 +22,8 @@ from libs.utils import set_seed
 from libs.utils import set_device
 from libs.utils import evaluate_regression
 from libs.utils import EarlyStopping
-
+from libs.utils import draw_loss_curve
+from libs.utils import get_mlflow_exp_id
 
 # 오류 출력 명확하게 하기 위해 환경변수 설정
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -34,7 +34,8 @@ def prepare_data(args, mlflow):
     # Prepare datasets and dataloaders
     dataset_list = get_complex_list(
         data_seed=args.seed,
-        frac=[0.7, 0.2, 0.1])
+        frac=[0.7, 0.2, 0.1],
+        dataset_name=args.dataset_name)
 
     dataset = []
     for i, _ in enumerate(dataset_list):
@@ -45,9 +46,11 @@ def prepare_data(args, mlflow):
         dataset_loader.append(DataLoader(dataset=dataset[i], batch_size=args.batch_size, shuffle=True,
                                     num_workers=args.num_workers, collate_fn=collate_func))
 
-    mlflow.log_param('data_length_train', dataset[0].__len__())
-    mlflow.log_param('data_length_valid', dataset[1].__len__())
-    mlflow.log_param('data_length_test', dataset[2].__len__())
+    mlflow.log_param('Data params - dataset name', args.dataset_name)
+    mlflow.log_param('Data params - split method', args.split_method)
+    mlflow.log_param('Data params - trainset length', dataset[0].__len__())
+    mlflow.log_param('Data params - validation length', dataset[1].__len__())
+    mlflow.log_param('Data params - test length', dataset[2].__len__())
 
     # return_value = dataset_loader
     del dataset_list, dataset
@@ -57,13 +60,11 @@ def prepare_data(args, mlflow):
 
 def prepare_model(args, mlflow):
     # set device and random seed for model
-    mlflow.log_params({'interaction type': args.interaction_type,
-                       'num of graph learning layer': args.num_g_layers,
-                       'num of interaction calculating layer': args.num_d_layers,
-                       'dim of graph layers': args.hidden_dim_g,
-                       'dim of interaction calculating layers': args.hidden_dim_d,
-                       'readout method': args.readout,
-                       'dropout probability': args.dropout_prob,
+    mlflow.log_params({'Model params - G.L. layer number': args.num_g_layers,
+                       'Model params - A.P. layer number': args.num_d_layers,
+                       'Model params - G.L. layer dimension': args.hidden_dim_g,
+                       'Model params - A.P.layer dimension': args.hidden_dim_d,
+                       'Model params - readout method': args.readout,
                        })
 
     set_seed(seed=args.seed)
@@ -201,20 +202,10 @@ def print_metric(metrics, mlflow, title):
     print(f"\n{tabulate(df_result, headers='keys', tablefmt='psql', showindex=True)}")
 
 
-def draw_loss_curve(*Losses):
-    plt.figure(figsize=(10, 5))
-    plt.title('loss curve')
-    for loss in Losses:
-        plt.plot(loss, label=f'{Losses[0]}')
-
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.savefig('./loss_curve.png')
-
 
 def train(args, data_loader, mlflow, train_configs):
     mlflow.log_param('Type', 'Train')
+    experiment_id = get_mlflow_exp_id(args.experiment_name)
 
     model = train_configs[0]
     optimizer = train_configs[1]
@@ -227,8 +218,8 @@ def train(args, data_loader, mlflow, train_configs):
     train_loader = data_loader[0]
     valid_loader = data_loader[1]
 
-    train_losses = ['train']
-    valid_losses = ['valid']
+    train_losses = []
+    valid_losses = []
 
     for epoch in range(args.num_epochs):
         print(f'\n{epoch+1} EPOCH'.zfill(3))
@@ -247,10 +238,9 @@ def train(args, data_loader, mlflow, train_configs):
             loss_train /= num_train_batch
             train_losses.append(loss_train)
             writer.add_scalar("Loss/Train", loss_train, epoch + 1)
-            mlflow.log_metric(key="Loss/Train", value=loss_train, step=epoch)
             train_metrics = evaluate_regression(y_list=y_list,pred_list=pred_list)
 
-        print_metric(train_metrics, mlflow, title='Train')
+        # print_metric(train_metrics, mlflow, title='Train')
 
         # Validation
         # set model as validation state and stop the gradient calculiation
@@ -265,10 +255,9 @@ def train(args, data_loader, mlflow, train_configs):
                 loss_valid /= num_valid_batch
                 valid_losses.append(loss_valid)
                 writer.add_scalar("Loss/Valid", loss_valid, epoch + 1)
-                mlflow.log_metric(key="Loss/Valid", value=loss_valid, step=epoch)
                 valid_metrics = evaluate_regression(y_list=y_list, pred_list=pred_list)
 
-        print_metric(valid_metrics, mlflow, title='Valid')
+        # print_metric(valid_metrics, mlflow, title='Valid')
         early_stopping(loss_valid, model, optimizer, epoch, mlflow)
 
         if early_stopping.early_stop:
@@ -276,7 +265,7 @@ def train(args, data_loader, mlflow, train_configs):
             print("Early stopping")
             break
 
-    draw_loss_curve(train_losses, valid_losses)
+    draw_loss_curve(train_losses, valid_losses, id=experiment_id, label_list=['train', 'valid'])
 
 
 def test(args, test_loader, mlflow, test_configs):
@@ -312,22 +301,21 @@ def argument_define(parser):
     parser.add_argument('--use_gpu', type=str, default='1', help='whether to use GPU device')
     parser.add_argument('--gpu_idx', type=str, default='0', help='index to gpu to use')
     parser.add_argument('--seed', type=int, default=999, help='Seed for all stochastic component and data sampling')
+    parser.add_argument('--experiment_name', type=str, default='HD011', help='Experiment id used in mlflow')
 
     ## hyper-parameters for dataset
-    parser.add_argument('--dataset_name', type=str, default='PDBbind 2020v', help='What dataset to use for model development')
+    parser.add_argument('--dataset_name', type=str, default='PDBbind 2020', help='What dataset to use for model development')
     parser.add_argument('--split_method', type=str, default='random', help='How to split dataset')
-    # parser.add_argument('--af_type', type=str, default='kdki', help='Type of binding affinity value')
 
     ## hyper-parameters for model structure
-    parser.add_argument('--interaction_type', type=str, default='vect', help='Type of interaction layer: dist, vect')
+    # parser.add_argument('--interaction_type', type=str, default='vect', help='Type of interaction layer: dist, vect')
     parser.add_argument('--num_g_layers', type=int, default=4, help='Number of graph layers for ligand featurization')
     parser.add_argument('--num_d_layers', type=int, default=5, help='Number of dense layers for ligand featurization')
     parser.add_argument('--hidden_dim_g', type=int, default=96, help='Dimension of hidden features')
     parser.add_argument('--hidden_dim_d', type=int, default=128, help='Dimension of hidden features')
     parser.add_argument('--readout', type=str, default='sum', help='Readout method, Options: sum, mean, ...')
-    parser.add_argument('--dropout_prob', type=float, default=0.0, help='Probability of dropout on node features')
 
-    # hyper-parameters for model training
+    # hyper-parameters for experiment
     ## vectorization layer : {num_workers - 4 / batch_size - 8}
     ## distance layer : {num_workers - 1 / batch_size - 4 }
     parser.add_argument('--optimizer', type=str, default='nadam', help='Options: adam, sgd, ...')
@@ -336,7 +324,8 @@ def argument_define(parser):
     parser.add_argument('--batch_size', type=int, default=64, help='Number of samples in a single batch')
     parser.add_argument('--lr', type=float, default=1e-3, help='Initial learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-6, help='Weight decay coefficient')
-    parser.add_argument('--cross_validation', type=bool, default=False, help='Cross validate a model')
+    parser.add_argument('--dropout_prob', type=float, default=0.0, help='Probability of dropout on node features')
+
 
     parser.add_argument('--save_model', type=str2bool, default=True, help='Whether to save model')
     parser.add_argument('--load_saved_model', type=bool, default=False)
@@ -359,12 +348,17 @@ if __name__ == '__main__':
     args = argument_define(parser)
     argument_print(args)
 
-    experiment_name = 'HD011'
+    experiment_name = args.experiment_name
     mlflow.set_experiment(experiment_name)
+    # data_loader_all = None
 
     with mlflow.start_run() as run:
-        mlflow.log_param('batch size', args.batch_size)
-        mlflow.log_param('num workers', args.num_workers)
+        mlflow.log_param('Experiment params - optimizer', args.optimizer)
+        mlflow.log_param('Experiment params - num workers', args.num_workers)
+        mlflow.log_param('Experiment params - batch size', args.batch_size)
+        mlflow.log_param('Experiment params - learning rate', args.lr)
+        mlflow.log_param('Experiment params - weight decay', args.weight_decay)
+        mlflow.log_param('Experiment params - dropout rate', args.dropout_prob)
 
         data_loader_all = prepare_data(args, mlflow)
         train_data_loader = data_loader_all[0], data_loader_all[1]

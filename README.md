@@ -34,8 +34,10 @@ This prediction model can be used for virtual screening of large chemical librar
 
 ## Details
 #### Model input
-입력 데이터로 사용되는 데이터는 단백질-리간드 복합체의 구조 정보가 포함된 데이터로, 복합체의 binding pose를 얻기 위한 사전 Docking 작업이 필요합니다.  
-입력 형태는 단백질 데이터의 경우 pdb format, 리간드 데이터의 경우 sdf 또는 mol2 format의 데이터를 사용합니다.  
+Input data is the data including the structure information of the protein-ligand complex.  
+The docking has to be preprocessed on each protein-ligand pair to obtain the binding pose of the complex.  
+The input format must be PDB format in case of the protein data and SDF or MOL2 format in case of the ligand.  
+
 
 #### Model architecture 
 예측 모델은 그래프 기반의 딥러닝 회귀 모델입니다.  

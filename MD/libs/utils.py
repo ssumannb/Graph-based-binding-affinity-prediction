@@ -1,22 +1,16 @@
 import argparse
 import random       # random으로 숫자뽑는 라이브러리
-
 import math
+import mlflow
+import os
 
-import mlflow.pytorch
 import torch
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
 
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import precision_score
-from sklearn.metrics import recall_score
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import r2_score
-from scipy.stats import pearsonr
 
 
 def str2bool(v):
@@ -107,36 +101,30 @@ def calibration(
 
     return conf_bin, acc_bin, ece
 
-def evaluate_classification(
-        y_list,
-        pred_list
-    ):
-    y_list = torch.cat(y_list, dim=0).detach().cpu().numpy()
-    pred_list = torch.cat(pred_list, dim=0).detach().cpu().numpy()
-
-    auroc = roc_auc_score(y_list, pred_list)
-    _, _, ece = calibration(y_list, pred_list)
-
-    '''
-    To calculate metric in the below,
-    scores should be presented in integer type
-    because this evaluate the classification performance
-    '''
-    y_list = y_list.astype(int)
-    pred_list = np.around(pred_list).astype(int)
-
-    accuracy = accuracy_score(y_list, pred_list)
-    precision = precision_score(y_list, pred_list)
-    recall = recall_score(y_list, pred_list)
-    f1 = 2.0 * precision * recall / (precision + recall)
-
-    return accuracy, auroc, precision, recall, f1, ece
+# def evaluate_classification(y_list, pred_list):
+#     y_list = torch.cat(y_list, dim=0).detach().cpu().numpy()
+#     pred_list = torch.cat(pred_list, dim=0).detach().cpu().numpy()
+#
+#     auroc = roc_auc_score(y_list, pred_list)
+#     _, _, ece = calibration(y_list, pred_list)
+#
+#     '''
+#     To calculate metric in the below,
+#     scores should be presented in integer type
+#     because this evaluate the classification performance
+#     '''
+#     y_list = y_list.astype(int)
+#     pred_list = np.around(pred_list).astype(int)
+#
+#     accuracy = accuracy_score(y_list, pred_list)
+#     precision = precision_score(y_list, pred_list)
+#     recall = recall_score(y_list, pred_list)
+#     f1 = 2.0 * precision * recall / (precision + recall)
+#
+#     return accuracy, auroc, precision, recall, f1, ece
 
 
-def evaluate_regression(
-      y_list,
-      pred_list
-    ):
+def evaluate_regression(y_list:list, pred_list:list):
     try:
         y_list = torch.cat(y_list, dim=0).detach().cpu().numpy()
     except:
@@ -160,53 +148,31 @@ def evaluate_regression(
 
     return mse, mae, rmse, r2
 
-def evaluate_regression_test(
-        y_list,
-        pred_list
-    ):
-    try:
-        y_list = torch.cat(y_list, dim=0).detach().cpu().numpy()
-    except:
-        y_list = np.array(y_list)
+def draw_loss_curve(*Losses, label_list:list=None, id='default'):
+    plt.figure(figsize=(10, 5))
+    plt.title('loss curve')
 
-    try:
-        pred_list = torch.cat(pred_list, dim=0).detach().cpu().numpy()
-    except:
-        pred_list = np.array(pred_list)
+    # prepare legend
+    if label_list == None:
+        legend_list = [f'loss {x}' for x in range(len(Losses))]
 
-    sns.set_theme(color_codes=True)
-    axis_x = np.array(pred_list)
-    axis_y = np.array(y_list)
+    # draw curve
+    for loss, label in zip(Losses, label_list):
+        plt.plot(loss, label=label)
 
-    sns.regplot(x=axis_x, y=axis_y)
-    plt.savefig(f'../BA_prediction_ignore/prediction_plot.png', dpi=300)
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
 
-    # CI index
-    summ = 0
-    pair = 0
+    # save curve
+    filename = (f'./loss_curve({id}).png')
+    if os.path.isfile(filename):
+        os.remove(filename)
+    plt.savefig(filename)
 
-    for i in range(1, len(y_list)):
-        for j in range(0, i):
-            if i is not j:
-                if (y_list[i] > y_list[j]):
-                    pair += 1
-                    summ += 1 * (pred_list[i] > pred_list[j]) + 0.5 * (pred_list[i] == pred_list[j])
-
-    if pair is not 0:
-        ci =  summ/pair
-    else:
-        ci =  0
-
-    return ci
 
 class EarlyStopping:
-    def __init__(
-            self,
-            patience=7,
-            verbose=False,
-            delta=0.01,
-            path='checkpoint.pt',
-            trace_func=print):
+    def __init__(self, patience=7, verbose=False, delta=0.01, path='checkpoint.pt', trace_func=print):
         '''
         Early stops the training if validation loss doesn't improve after a given patience
         :param patience: (int) How long to wait after last time validation loss improved.
@@ -225,14 +191,7 @@ class EarlyStopping:
         self.path = path
         self.trace_func = trace_func
 
-    def __call__(
-            self,
-            val_loss,
-            model,
-            optimizer,
-            epoch,
-            mlflow
-        ):
+    def __call__(self, val_loss, model, optimizer, epoch, mlflow):
 
         score = -val_loss
 
@@ -242,7 +201,7 @@ class EarlyStopping:
             self.verbose = True
         elif score < self.best_score + self.delta:
             self.counter += 1
-            self.trace_func(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            self.trace_func(f'\nEarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
                 self.early_stop = True
         else:
@@ -250,14 +209,7 @@ class EarlyStopping:
             self.save_checkpoint(val_loss, model, optimizer, epoch, mlflow)
             self.counter = 0
 
-    def save_checkpoint(
-            self,
-            val_loss,
-            model,
-            optimizer,
-            epoch,
-            mlflow
-        ):
+    def save_checkpoint(self, val_loss, model, optimizer, epoch, mlflow):
         '''
         Saves model when validation loss decrease
         '''
@@ -272,3 +224,10 @@ class EarlyStopping:
         mlflow.pytorch.log_model(model, 'Model')
 
         self.val_loss_min = val_loss
+
+
+def get_mlflow_exp_id(exp_name):
+    current_experiment = dict(mlflow.get_experiment_by_name(exp_name))
+    experiment_id = current_experiment['experiment_id']
+
+    return experiment_id

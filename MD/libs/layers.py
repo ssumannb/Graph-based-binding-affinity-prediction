@@ -56,16 +56,30 @@ class denseMLP(nn.Module):
         self.output_dim = output_dim
 
         self.act = act
-
         self.linear_list = nn.ModuleList()
-        num_layer_mid = (num_layer-1)/2
-        for i in range(num_layer-1):
-            if i < num_layer_mid:
-                self.linear_list.append(nn.Linear(input_dim, hidden_dim, bias=bias))
-            else:
-                self.linear_list.append(nn.Linear(hidden_dim, int(hidden_dim/2), bias=bias))
+        num_layer_mid = int((num_layer - 2) / 2)
+        self.linear_list.append(nn.Linear(input_dim, hidden_dim, bias=bias))  # first layer added
+        num_layer = num_layer - 3
 
-        self.linear_out = nn.Linear(int(hidden_dim/2), output_dim, bias=bias)
+        hidden_dim_in = int(hidden_dim)
+        hidden_dim_out = int(hidden_dim)
+        flag_dim_down = 0
+
+        for i in range(num_layer):
+            if i == num_layer_mid and flag_dim_down == 0:
+                hidden_dim_in = hidden_dim
+                hidden_dim_out = int(hidden_dim / 2)
+                self.linear_list.append(nn.Linear(hidden_dim_in, hidden_dim_out, bias=bias))
+                hidden_dim_in = hidden_dim_out
+                flag_dim_down = 1
+            if i == num_layer - 1 and flag_dim_down == 1:
+                hidden_dim_out = int(hidden_dim_out / 2)
+                self.linear_list.append(nn.Linear(hidden_dim_in, hidden_dim_out, bias=bias))
+                flag_dim_down = 2
+            else:
+                self.linear_list.append(nn.Linear(hidden_dim_in, hidden_dim_out, bias=bias))
+
+        self.linear_out = nn.Linear(hidden_dim_out, output_dim, bias=bias)
 
     def forward(self, h):
         for i, linear_layer in enumerate(self.linear_list):
@@ -154,77 +168,6 @@ class GraphAttention(nn.Module):
     ):
         h0 = graph.ndata['h']
         e_ij = graph.edata['e_ij']
-
-        graph.ndata['u'] = F.leaky_relu(self.w1(h0).view(-1, self.num_heads, self.splitted_dim))
-        graph.ndata['v'] = F.leaky_relu(self.w2(h0).view(-1, self.num_heads, self.splitted_dim))
-        graph.edata['x_ij'] = self.w3(e_ij).view(-1, self.num_heads, self.splitted_dim)
-
-        graph.apply_edges(fn.v_add_e('v', 'x_ij', 'm'))  # message passing
-        graph.apply_edges(fn.u_mul_e('u', 'm', 'attn'))  # attention
-        graph.edata['attn'] = edge_softmax(graph, graph.edata['attn'] / math.sqrt(self.splitted_dim))
-
-        graph.ndata['k'] = F.leaky_relu(self.w4(h0).view(-1, self.num_heads, self.splitted_dim))
-        graph.edata['x_ij'] = F.leaky_relu(self.w5(e_ij).view(-1, self.num_heads, self.splitted_dim))
-        graph.apply_edges(fn.v_add_e('k', 'x_ij', 'm'))
-
-        graph.edata['m'] = graph.edata['attn'] * graph.edata['m']
-        graph.update_all(fn.copy_edge('m', 'm'), fn.sum('m', 'h'))
-
-        h = self.w6(h0) + graph.ndata['h'].view(-1, self.hidden_dim)
-        h = self.norm(h)
-
-        # Add and Norm module
-        h = h + self.mlp(h)
-        h = self.norm(h)
-
-        # Apply dropout on node features
-        h = F.dropout(h, p=self.prob, training=training)
-
-        graph.ndata['h'] = h
-        return graph
-
-
-class GraphAttention_dist(nn.Module):
-    def __init__(
-            self,
-            hidden_dim,
-            num_heads=4,
-            bias_mlp=True,
-            dropout_prob=0.2,
-            act=F.relu,
-    ):
-        super().__init__()
-
-        self.mlp = MLP(
-            input_dim=hidden_dim,
-            hidden_dim=2 * hidden_dim,
-            output_dim=hidden_dim,
-            bias=bias_mlp,
-            act=act,
-        )
-        self.hidden_dim = hidden_dim
-        self.num_heads = num_heads
-        self.splitted_dim = hidden_dim // num_heads
-
-        self.prob = dropout_prob
-        self.act = act
-
-        self.w1 = nn.Linear(hidden_dim, hidden_dim, bias=False)
-        self.w2 = nn.Linear(hidden_dim, hidden_dim, bias=False)
-        self.w3 = nn.Linear(hidden_dim, hidden_dim, bias=False)
-        self.w4 = nn.Linear(hidden_dim, hidden_dim, bias=False)
-        self.w5 = nn.Linear(hidden_dim, hidden_dim, bias=False)
-        self.w6 = nn.Linear(hidden_dim, hidden_dim, bias=False)
-
-        self.norm = nn.LayerNorm(hidden_dim)
-
-    def forward(
-            self,
-            graph,
-            training=False
-    ):
-        h0 = graph.ndata['h']
-        e_ij = graph.edata['vdw']
 
         graph.ndata['u'] = F.leaky_relu(self.w1(h0).view(-1, self.num_heads, self.splitted_dim))
         graph.ndata['v'] = F.leaky_relu(self.w2(h0).view(-1, self.num_heads, self.splitted_dim))

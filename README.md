@@ -46,9 +46,9 @@ This prediction model can be used for virtual screening of large chemical librar
 Input data is the data including the structure information of the protein-ligand complex. The docking has to be preprocessed on each protein-ligand pair to obtain the binding pose of the complex. The input format must be PDB format in case of the protein data and SDF or MOL2 format in case of the ligand.  
 
 #### 1. Graph converting part
-단백질/리간드 데이터를 atom-level에서 graph로 각각 변환하는 작업을 진행합니다.
-단백질의 경우 알려진 pocket site를 활용하여 리간드를 구성하는 원자와의 거리가 5A 이하인 원자를 포함하는 잔기들만 단백질 그래프로 변환합니다.
-리간드 물질의 경우 구성하고 있는 모든 원자들을 그래프로 변환합니다.
+단백질/리간드 데이터를 atom-level에서 graph로 각각 변환하는 작업을 진행합니다.  
+단백질의 경우 알려진 pocket site를 활용하여 리간드를 구성하는 원자와의 거리가 5A 이하인 원자를 포함하는 잔기들만 단백질 그래프로 변환합니다.  
+리간드 물질의 경우 구성하고 있는 모든 원자들을 그래프로 변환합니다.  
 
 #### 2. Graph learning part  
 단백질/리간드 그래프의 특징을 그래프 기반 레이어를 통해 학습하는 작업을 진행합니다.  
@@ -58,7 +58,7 @@ Input data is the data including the structure information of the protein-ligand
 
 #### 3. Affinity calculation part
 단백질/리간드 특징으로 fully-connected 레이어를 통해 binding affinity를 예측하는 작업을 진행합니다.  
-학습된 각각의 그래프 특징들은 벡터화되어 summation 후 fully-connected layer에 전달됩니다.
+학습된 각각의 그래프 특징들은 벡터화되어 summation 후 fully-connected layer에 전달됩니다.  
 마지막 layer의 output이 단백질-리간드 복합체의 binding aiffinity 값 입니다.  
 
 

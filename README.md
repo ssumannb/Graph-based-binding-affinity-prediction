@@ -2,32 +2,30 @@
 Project name : HD011  
 
 ## Description
-본 프로젝트는 단백질-리간드 복합체의 binding affinity를 예측하는 인공지능 기반 모델을 개발하는 프로젝트입니다.  
-해당 모델은 신약 개발 단계 중 초기 단계인 Hit discovery에서 Target 단백질에 대해 대규모 화합물 라이브러리를 가상 스크리닝을 위해 사용할 수 있습니다.  
 This project is the development project that AI-based binding affinity prediction model for the protein-ligand complex.  
 This prediction model can be used for virtual screening of large chemical libraries for target proteins in a hit discovery step that is early-stage on drug discovery.  
 
 ## Environment
-OS : window  
-GPU : NVIDIA GeForce RTX 3080 Ti  
-CPU : i9-11900  
-RAM : 32GB  
-Language : Python 3  
-Framework : Pytorch 
-CUDA 11.3 cudnn 8.0
+- OS : window  
+- GPU : NVIDIA GeForce RTX 3080 Ti  
+- CPU : i9-11900  
+- RAM : 32GB  
+- Language : Python 3  
+- Framework : Pytorch 
+- CUDA 11.3 cudnn 8.0
 
 
 ## Prerequisite
-python 3.8.12  
-pytorch nightly 1.11.0  
-rdkit 2021.09.4  
-deepchem 2.6.1  
-dgl-cuda11.3 0.7.2   
-mlflow 1.22.0  
-numpy 1.20.3  
-pandas 1.3.5  
-sklearn 1.0.1  
-scipy 1.6.2  
+- python 3.8.12  
+- pytorch nightly 1.11.0  
+- rdkit 2021.09.4  
+- deepchem 2.6.1  
+- dgl-cuda11.3 0.7.2   
+- mlflow 1.22.0  
+- numpy 1.20.3  
+- pandas 1.3.5  
+- sklearn 1.0.1  
+- scipy 1.6.2  
 
 
 ## Details

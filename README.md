@@ -12,22 +12,30 @@ OS : window
 GPU : NVIDIA GeForce RTX 3080 Ti  
 CPU : i9-11900  
 RAM : 32GB  
-CUDA : 11.3  
 Language : Python 3  
-Framework : Pytorch 1.10.1  
+Framework : Pytorch 
+CUDA 11.3 cudnn 8.0
+
 
 ## Prerequisite
-numpy, pandas, rdkit, deepchem, dgl, sklearn  
+python 3.8.12  
+pytorch nightly 1.11.0  
+rdkit 2021.09.4  
+deepchem 2.6.1  
+dgl-cuda11.3 0.7.2   
+mlflow 1.22.0  
+numpy 1.20.3  
+pandas 1.3.5  
+sklearn 1.0.1  
+scipy 1.6.2  
 
 
 ## Details
-#### - model input
+#### Model input
 입력 데이터로 사용되는 데이터는 단백질-리간드 복합체의 구조 정보가 포함된 데이터로, 복합체의 binding pose를 얻기 위한 사전 Docking 작업이 필요합니다.  
 입력 형태는 단백질 데이터의 경우 pdb format, 리간드 데이터의 경우 sdf 또는 mol2 format의 데이터를 사용합니다.  
-#### - model architecture 
+#### Model architecture 
 예측 모델은 그래프 기반의 딥러닝 회귀 모델입니다.  
-
-**모델 구성**  
 - 입력 데이터 전처리를 진행하는 Graph converting part  
 - 변환된 그래프의 특징을 학습하는 Graph learning layers  
 - 학습된 그래프 특징에서 binding affinity 값을 예측하는 Affinity calculation layers  
@@ -42,7 +50,7 @@ numpy, pandas, rdkit, deepchem, dgl, sklearn
 
 ##### 2. Graph learning part  
 단백질/리간드 그래프의 특징을 그래프 기반 레이어를 통해 학습하는 작업을 진행합니다.  
-변환된 단백질/리간드 그래프는 각각 네트워크로 전달되어 학습됩니다.  
+변환된 단백질/리간드 그래프는 선형 임베딩을 거쳐 각각 네트워크로 전달되어 학습됩니다.  
 - 단백질 그래프는 Graph-convolution layer(GCN)로 구성된 네트워크를 통해 학습됩니다.  
 - 리간드 그래프는 Graph-attention layer(GAT)로 구성된 네트워크를 통해 학습됩니다.  
 

@@ -1,9 +1,11 @@
 # HD011
 Project name : HD011  
 
+
 ## Description
 This project is the development project that AI-based binding affinity prediction model for the protein-ligand complex.  
 This prediction model can be used for virtual screening of large chemical libraries for target proteins in a hit discovery step that is early-stage on drug discovery.  
+
 
 ## Environment
 - OS : window  
@@ -13,6 +15,7 @@ This prediction model can be used for virtual screening of large chemical librar
 - Language : Python 3  
 - Framework : Pytorch 
 - CUDA 11.3 cudnn 8.0
+
 
 
 ## Prerequisite
@@ -28,10 +31,12 @@ This prediction model can be used for virtual screening of large chemical librar
 - scipy 1.6.2  
 
 
+
 ## Details
 #### Model input
 입력 데이터로 사용되는 데이터는 단백질-리간드 복합체의 구조 정보가 포함된 데이터로, 복합체의 binding pose를 얻기 위한 사전 Docking 작업이 필요합니다.  
 입력 형태는 단백질 데이터의 경우 pdb format, 리간드 데이터의 경우 sdf 또는 mol2 format의 데이터를 사용합니다.  
+
 #### Model architecture 
 예측 모델은 그래프 기반의 딥러닝 회귀 모델입니다.  
 - 입력 데이터 전처리를 진행하는 Graph converting part  
@@ -56,6 +61,8 @@ This prediction model can be used for virtual screening of large chemical librar
 단백질/리간드 특징으로 fully-connected 레이어를 통해 binding affinity를 예측하는 작업을 진행합니다.  
 학습된 각각의 그래프 특징들은 벡터화되어 summation 후 fully-connected layer에 전달됩니다.
 마지막 layer의 output이 단백질-리간드 복합체의 binding aiffinity 값 입니다.  
+
+
 
 ## Files
 ##### 📁 DB

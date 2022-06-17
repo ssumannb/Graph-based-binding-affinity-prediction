@@ -110,8 +110,10 @@ def prepare_model(args, mlflow):
 
     # load saved model if applicable
     if args.load_saved_model == True:
-        saved_model = torch.load('./model.pth')
-        model = saved_model
+        saved_model = torch.load('./checkpoint.pt')
+        starting_point = int(saved_model['epoch'])
+        model.load_state_dict(saved_model['model_state_dict'])
+        optimizer.load_state_dict(saved_model['optimizer_state_dict'])
         model.eval()
 
     # define loss function
@@ -204,7 +206,6 @@ def print_metric(metrics, mlflow, title):
 
 
 def train(args, data_loader, mlflow, train_configs):
-    mlflow.log_param('Type', 'Train')
     experiment_id = get_mlflow_exp_id(args.experiment_name)
 
     model = train_configs[0]
@@ -269,7 +270,6 @@ def train(args, data_loader, mlflow, train_configs):
 
 
 def test(args, test_loader, mlflow, test_configs):
-    mlflow.log_param('Type', 'Test')
 
     model = test_configs[0]
     device = test_configs[5]
@@ -277,12 +277,11 @@ def test(args, test_loader, mlflow, test_configs):
     model.to(device)
 
     # load saved model
-    trained_model = torch.load('./model.pth')
-    model = trained_model
+    trained_model = torch.load('./checkpoint.pt')
+    model.load_state_dict(trained_model['model_state_dict'])
     model.eval()
 
     with torch.no_grad():
-
         # test start for identifying the early stop point
         num_batches = len(test_loader)
 
@@ -326,7 +325,7 @@ def argument_define(parser):
     parser.add_argument('--weight_decay', type=float, default=1e-6, help='Weight decay coefficient')
     parser.add_argument('--dropout_prob', type=float, default=0.0, help='Probability of dropout on node features')
 
-
+    # hyper-parameters for model saving
     parser.add_argument('--save_model', type=str2bool, default=True, help='Whether to save model')
     parser.add_argument('--load_saved_model', type=bool, default=False)
 

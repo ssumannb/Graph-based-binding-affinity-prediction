@@ -101,28 +101,6 @@ def calibration(
 
     return conf_bin, acc_bin, ece
 
-# def evaluate_classification(y_list, pred_list):
-#     y_list = torch.cat(y_list, dim=0).detach().cpu().numpy()
-#     pred_list = torch.cat(pred_list, dim=0).detach().cpu().numpy()
-#
-#     auroc = roc_auc_score(y_list, pred_list)
-#     _, _, ece = calibration(y_list, pred_list)
-#
-#     '''
-#     To calculate metric in the below,
-#     scores should be presented in integer type
-#     because this evaluate the classification performance
-#     '''
-#     y_list = y_list.astype(int)
-#     pred_list = np.around(pred_list).astype(int)
-#
-#     accuracy = accuracy_score(y_list, pred_list)
-#     precision = precision_score(y_list, pred_list)
-#     recall = recall_score(y_list, pred_list)
-#     f1 = 2.0 * precision * recall / (precision + recall)
-#
-#     return accuracy, auroc, precision, recall, f1, ece
-
 
 def evaluate_regression(y_list:list, pred_list:list):
     try:
@@ -139,12 +117,6 @@ def evaluate_regression(y_list:list, pred_list:list):
     mae = mean_absolute_error(y_list, pred_list)
     rmse = math.sqrt(mse)
     r2 = r2_score(y_list, pred_list)
-
-
-    # pearson_r = pearsonr(y_list, pred_list)
-    # f = pred_list.shape[0]
-    # pred_list_1D = np.reshape(pred_list, pred_list.shape[0])
-    y_list_reshaped = np.reshape(y_list, (1, y_list.shape[0]))
 
     return mse, mae, rmse, r2
 
@@ -172,7 +144,7 @@ def draw_loss_curve(*Losses, label_list:list=None, id='default'):
 
 
 class EarlyStopping:
-    def __init__(self, patience=7, verbose=False, delta=0.01, path='checkpoint.pt', trace_func=print):
+    def __init__(self, patience=7, verbose=False, delta=0.01, trace_func=print):
         '''
         Early stops the training if validation loss doesn't improve after a given patience
         :param patience: (int) How long to wait after last time validation loss improved.
@@ -188,7 +160,7 @@ class EarlyStopping:
         self.early_stop = False
         self.val_loss_min = np.Inf
         self.delta = delta
-        self.path = path
+        self.PATH = 'checkpoint.pt'
         self.trace_func = trace_func
 
     def __call__(self, val_loss, model, optimizer, epoch, mlflow):
@@ -210,17 +182,15 @@ class EarlyStopping:
             self.counter = 0
 
     def save_checkpoint(self, val_loss, model, optimizer, epoch, mlflow):
-        '''
-        Saves model when validation loss decrease
-        '''
+        # Saves model when validation loss decrease
         if self.verbose:
             self.trace_func(f'Validation loss decreased ({self.val_loss_min:.6f}-->{val_loss:.6f}).  Saving model...')
-        torch.save(model, self.path)
 
         torch.save({'epoch': epoch,
                     'optimizer_state_dict':optimizer.state_dict(),
                     'model_state_dict':model.state_dict(),},
                     self.path)
+
         mlflow.pytorch.log_model(model, 'Model')
 
         self.val_loss_min = val_loss

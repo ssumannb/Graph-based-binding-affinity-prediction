@@ -39,6 +39,11 @@ This prediction model can be used for virtual screening of large chemical librar
 - 변환된 그래프의 특징을 학습하는 Graph learning layers  
 - 학습된 그래프 특징에서 binding affinity 값을 예측하는 Affinity calculation layers  
 
+The prediction model is the deep learning regression model based on the graph.  
+- The Graph converting part  preprocesses the input data  
+- The Graph learning part learns features from converted graphs  
+- The Affinity calculation layers predict the binding affintiy using graph features  
+
 ![image](https://user-images.githubusercontent.com/86610517/173760137-10cfff36-dd2d-4e1d-9caa-51ef6a588346.png)
 
 

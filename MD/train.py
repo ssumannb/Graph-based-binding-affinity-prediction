@@ -4,16 +4,19 @@ from tabulate import tabulate
 import mlflow
 
 import os
+import dgl
 import torch
 import torch.nn as nn
 import pandas as pd
 
+from multiprocessing import Manager
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from libs.io_utils import get_complex_list
-from libs.io_utils import Complex_Dataset
+from libs.io_utils import Cached_Complex_Dataset
 from libs.io_utils import collate_func
+from libs.io_utils import DatasetCache
 
 from libs.models import Model
 
@@ -29,8 +32,9 @@ from libs.utils import get_mlflow_exp_id
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 writer = SummaryWriter()
 
-
 def prepare_data(args, mlflow):
+    manager = Manager()
+    cache = DatasetCache(manager)
     # Prepare datasets and dataloaders
     dataset_list = get_complex_list(
         data_seed=args.seed,
@@ -39,10 +43,11 @@ def prepare_data(args, mlflow):
 
     dataset = []
     for i, _ in enumerate(dataset_list):
-        dataset.append(Complex_Dataset(splitted_set=dataset_list[i]))
+        dataset.append(Cached_Complex_Dataset(splitted_set=dataset_list[i], cache=cache))
 
     dataset_loader = []
     for i, _ in enumerate(dataset):
+        # pd.DataFrame(dataset[i].PDB_code).to_csv(f'./dataset_{i}.csv')
         dataset_loader.append(DataLoader(dataset=dataset[i], batch_size=args.batch_size, shuffle=True,
                                     num_workers=args.num_workers, collate_fn=collate_func))
 
@@ -53,19 +58,20 @@ def prepare_data(args, mlflow):
     mlflow.log_param('Data params - test length', dataset[2].__len__())
 
     # return_value = dataset_loader
-    del dataset_list, dataset
+    del dataset_list
 
-    return dataset_loader
+    return dataset_loader, dataset
 
 
-def prepare_model(args, mlflow):
+def prepare_model(args, mlflow=None):
     # set device and random seed for model
-    mlflow.log_params({'Model params - G.L. layer number': args.num_g_layers,
-                       'Model params - A.P. layer number': args.num_d_layers,
-                       'Model params - G.L. layer dimension': args.hidden_dim_g,
-                       'Model params - A.P.layer dimension': args.hidden_dim_d,
-                       'Model params - readout method': args.readout,
-                       })
+    if mlflow!=None:
+        mlflow.log_params({'Model params - G.L. layer number': args.num_g_layers,
+                           'Model params - A.P. layer number': args.num_d_layers,
+                           'Model params - G.L. layer dimension': args.hidden_dim_g,
+                           'Model params - A.P.layer dimension': args.hidden_dim_d,
+                           'Model params - readout method': args.readout,
+                           })
 
     set_seed(seed=args.seed)
     device = set_device(use_gpu=args.use_gpu, gpu_idx=args.gpu_idx)
@@ -222,6 +228,21 @@ def train(args, data_loader, mlflow, train_configs):
     train_losses = []
     valid_losses = []
 
+    for cache in train_loader:
+        # print(len(train_loader.dataset.cached_data))
+        train_loader.dataset.cache
+    print('trainloader caching done')
+    train_loader.use_cache = True
+
+    for cache in valid_loader:
+        # print(len(valid_loader.dataset.cached_data))
+        valid_loader.dataset.cache
+    print('validloader caching done')
+    valid_loader.use_cache = True
+
+    train_loader.num_workers = args.num_workers
+    valid_loader.num_workers = args.num_workers
+
     for epoch in range(args.num_epochs):
         print(f'\n{epoch+1} EPOCH'.zfill(3))
 
@@ -239,9 +260,6 @@ def train(args, data_loader, mlflow, train_configs):
             loss_train /= num_train_batch
             train_losses.append(loss_train)
             writer.add_scalar("Loss/Train", loss_train, epoch + 1)
-            train_metrics = evaluate_regression(y_list=y_list,pred_list=pred_list)
-
-        # print_metric(train_metrics, mlflow, title='Train')
 
         # Validation
         # set model as validation state and stop the gradient calculiation
@@ -256,7 +274,7 @@ def train(args, data_loader, mlflow, train_configs):
                 loss_valid /= num_valid_batch
                 valid_losses.append(loss_valid)
                 writer.add_scalar("Loss/Valid", loss_valid, epoch + 1)
-                valid_metrics = evaluate_regression(y_list=y_list, pred_list=pred_list)
+                # valid_metrics = evaluate_regression(y_list=y_list, pred_list=pred_list)
 
         # print_metric(valid_metrics, mlflow, title='Valid')
         early_stopping(loss_valid, model, optimizer, epoch, mlflow)
@@ -269,7 +287,7 @@ def train(args, data_loader, mlflow, train_configs):
     draw_loss_curve(train_losses, valid_losses, id=experiment_id, label_list=['train', 'valid'])
 
 
-def test(args, test_loader, mlflow, test_configs):
+def test(args, test_data, mlflow, test_configs):
 
     model = test_configs[0]
     device = test_configs[5]
@@ -281,17 +299,55 @@ def test(args, test_loader, mlflow, test_configs):
     model.load_state_dict(trained_model['model_state_dict'])
     model.eval()
 
+    num_data = test_data.__len__()
+
+    y_list = []
+    pred_list = []
+
     with torch.no_grad():
         # test start for identifying the early stop point
-        num_batches = len(test_loader)
+        # batch
+        num_batches = len(test_data)
 
         with tqdm(total=num_batches) as pbar:
             pbar.set_description('> TEST')
-            y_list, pred_list = evaluate(test_loader, pbar, model, device)
+            y_list, pred_list = evaluate(test_data, pbar, model, device)
             test_metrics = evaluate_regression(y_list=y_list, pred_list=pred_list)
 
-    print_metric(test_metrics, title='Test', mlflow=mlflow)
+        # unbatch
+        # with tqdm(total=num_data) as pbar:
+        #     for data in test_data:
+        #         pbar.update(1)
+        #         graphs, y = data
+        #         graph_p = dgl.batch([graphs[0]]).to(device)
+        #         graph_l = dgl.batch([graphs[1]]).to(device)
+        #
+        #         output = model(graph_p, graph_l)
+        #
+        #         y_list.append(y)
+        #         pred_list.append(output)
+        #
+        #         pred = output.squeeze()
+        #
+        #         del graph_p, graph_l, output
+        #
+        # test_metrics = evaluate_regression(y_list=y_list, pred_list=pred_list)
 
+        print_metric(test_metrics, title='Test', mlflow=mlflow)
+
+    # head = ['#code', 'score']
+    # body = []
+    # pdb_code = tmp_data_list['PDB_code'].tolist()
+    # pred_list = torch.cat(pred_list, dim=0).detach().cpu().numpy().reshape(-1, )
+    # for code, pred in zip(pdb_code, pred_list):
+    #     pred = round(pred, 2)
+    #     body.append([code, pred])
+    #
+    # result = pd.DataFrame(body, columns=head).sort_values(by='#code', ascending=True)
+    # result = result.set_index('#code', drop=True, append=False)
+    #
+    # with open('./test.txt', 'wb') as f:
+    #     result.to_csv(f, sep=' ')
 
 
 def argument_define(parser):
@@ -359,14 +415,15 @@ if __name__ == '__main__':
         mlflow.log_param('Experiment params - weight decay', args.weight_decay)
         mlflow.log_param('Experiment params - dropout rate', args.dropout_prob)
 
-        data_loader_all = prepare_data(args, mlflow)
+        data_loader_all, dataset_all = prepare_data(args, mlflow)
         train_data_loader = data_loader_all[0], data_loader_all[1]
         test_data_loader = data_loader_all[2]
+        test_dataset = dataset_all[2]
 
         model_configs = prepare_model(args, mlflow)
         train(args=args, data_loader=train_data_loader, mlflow=mlflow, train_configs=model_configs)
-        test(args=args, test_loader=test_data_loader, mlflow=mlflow, test_configs=model_configs)
-
+        test(args=args, test_data=test_data_loader, mlflow=mlflow, test_configs=model_configs)
+        # test(args=args, test_data=test_dataset, mlflow=mlflow, test_configs=model_configs)
         writer.flush()
         writer.close()
 

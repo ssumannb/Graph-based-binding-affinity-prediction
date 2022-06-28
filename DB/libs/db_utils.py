@@ -1,7 +1,6 @@
 import psycopg2
 from neo4j import GraphDatabase
 
-
 class Connect2pgSQL:
     def __init__(self, config=None):
         if not config:
@@ -30,9 +29,7 @@ class Connect2pgSQL:
 
     def execute(self, query, args={}):
         self.cursor.execute(query, args)
-        row = ''
-        if 'UPDATE' not in query:
-            row = self.cursor.fetchall()
+        row = self.cursor.fetchall()
 
         return row
 
@@ -87,17 +84,18 @@ class Connect2pgSQL:
             self.db.rollback()
 
 
-    def readDB(self, schema, table, column):
-        sql = " SELECT {column} from {schema}.{table}"\
-            .format(column=column, schema=schema, table=table)
+    def readDB(self, schema, table, column, condition):
+        sql = "SELECT {column} from {schema}.{table} {condition}"\
+            .format(column=column, schema=schema, table=table, condition=condition)
+
         try:
             self.cursor.execute(sql)
             result = self.cursor.fetchall()
         except (Exception, psycopg2.DatabaseError) as e:
             result = ("read DB error: ", e)
-            self.db.rollback()
+            print(sql)
 
-        print(result)
+        return result
 
 
     def updateDB(self, schema, table, set, condition):

@@ -42,6 +42,9 @@ class Graph():
 
     def _extract_atom_feature(self, atom):
         # atom_feature length = 58 (50+6+5+6)
+        # atom protonation process
+
+        # org atom features
         atom_feature = self._onehot_encoding(atom.GetSymbol(), self.ATOM_VOCAB)
         atom_feature += self._onehot_encoding(atom.GetDegree(), [0, 1, 2, 3, 4, 5])
         atom_feature += self._onehot_encoding(atom.GetTotalNumHs(), [0, 1, 2, 3, 4])
@@ -120,13 +123,13 @@ def select_residue(ligand, pdb, save_path):
     io = PDBIO()
     io.set_structure(structure)
     pdbid = pdb.split('/')[-1].split('_')[0]
-    fn = f'{save_path}/{pdbid}_residues.pdb'
-    fn_infold = pdb.replace('pocket','residues')
+    # fn = f'{save_path}/{pdbid}_residues.pdb'
+    # fn_infold = pdb.replace('pocket','residues')
     # fn = f'BS_tmp_{str(np.random.randint(0, 1000000, 1)[0])}.pdb'
-    io.save(fn, ResidueSelect())
-    io.save(fn_infold, ResidueSelect())
+    io.save(save_path, ResidueSelect())
+    # io.save(fn_infold, ResidueSelect())
 
-    m2 = Chem.MolFromPDBFile(fn)
+    m2 = Chem.MolFromPDBFile(save_path)
     # os.system('del ' + fn)
 
     return m2

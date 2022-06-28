@@ -1,10 +1,9 @@
 import torch
 import sys
-import os
 import argparse
 import getopt
 import warnings
-import subprocess
+import dgl
 import pandas as pd
 
 from torch.utils.data import DataLoader
@@ -33,7 +32,7 @@ if __name__ == '__main__':
     def usage():
         print("-s or --schema: specify the schema of dataset for prediction in postgreSQL DBMS")
         print("-t or --table: specify the table name of dataset for prediction in postgreSQL DBMS")
-        print("\nExample: python prediction.py -s pdbbind -t coreset")
+        print("\nExample: python prediction_single.py -s pdbbind -t coreset -o prediction.txt")
 
     try:
         options, args = getopt.getopt(sys.argv[1:], "hs:t:", ["schema=", "table="])
@@ -61,16 +60,15 @@ if __name__ == '__main__':
     # schema = 'pdbbind'
     # table = 'coreset'
 
-    condition = f"INNER JOIN {schema}.available ON {table}.pdb_code = available.pdb_code " \
-                f"WHERE available.available = True AND available.subset=\'{table}\'"
     # condition = f"INNER JOIN {schema}.available ON {table}.pdb_code = available.pdb_code " \
-    #             f"WHERE available.available = True AND available.subset='refined'"
+    #             f"WHERE available.available = True AND available.subset=\'{'table'}\'"
+    condition = f"INNER JOIN {schema}.available ON {table}.pdb_code = available.pdb_code " \
+                f"WHERE available.available = True AND available.subset='refined'"
 
     db = pgDB()
 
     # arguments for training
-    config = {'batch_size': 64,
-                'num_workers': 8,
+    config = {'num_workers': 8,
                 'use_gpu': 1,
                 'gpu_idx': 0 }
 
@@ -87,8 +85,6 @@ if __name__ == '__main__':
         sys.exit()
 
     dataset = Complex_Dataset(splitted_set=data_info, training=False, dataset_name='coreset')
-    data_loader = DataLoader(dataset=dataset, batch_size=config['batch_size'],
-                             num_workers=config['num_workers'], collate_fn=collate_func)
 
     # prediction
     device = set_device(use_gpu=config['use_gpu'], gpu_idx=config['gpu_idx'])
@@ -97,15 +93,32 @@ if __name__ == '__main__':
     model.eval()
 
     with torch.no_grad():
-        num_batches = len(data_loader)
+        # num_batches = len(data_loader)
+        num_data = dataset.__len__()
+        y_list = []
+        pred_list = []
 
-        with tqdm(total=num_batches) as pbar:
+        with tqdm(total=num_data) as pbar:
             pbar.set_description('> Prediction')
-            y_list, pred_list = evaluate(data_loader, pbar, model, device)
+            # y_list, pred_list = evaluate(data_loader, pbar, model, device)
+            for data in dataset:
+                pbar.update(1)
+                graphs, y = data
+                graph_p = dgl.batch([graphs[0]]).to(device)
+                graph_l = dgl.batch([graphs[1]]).to(device)
+
+                output = model(graph_p, graph_l)
+
+                y_list.append(y)
+                pred_list.append(output)
+
+                pred = output.squeeze()
+
+                del graph_p, graph_l, output
+
             pred_metrics = evaluate_regression(y_list=y_list, pred_list=pred_list)
 
         print_metric(pred_metrics, title='Prediction')
-
 
     head = ['#code', 'score']
     body = []
@@ -118,6 +131,6 @@ if __name__ == '__main__':
     result = pd.DataFrame(body, columns=head).sort_values(by='#code', ascending=True)
     result = result.set_index('#code', drop=True, append=False)
 
-    with open('./prediction.txt', 'wb') as f:
+    with open('./prediction_single.txt', 'wb') as f:
         result.to_csv(f, sep=' ')
 

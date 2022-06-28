@@ -51,7 +51,6 @@ for row in load_ws.rows:
         val_str = val_str.replace('\\\'', '\"')
         db.insertDB(schema, table, col_str, val_str)
 
-    db.commit()
     idx += 1
 
 df_data = pd.DataFrame(list_data, columns=col)

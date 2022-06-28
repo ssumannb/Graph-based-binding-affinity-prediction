@@ -189,7 +189,7 @@ class EarlyStopping:
         torch.save({'epoch': epoch,
                     'optimizer_state_dict':optimizer.state_dict(),
                     'model_state_dict':model.state_dict(),},
-                    self.path)
+                    self.PATH)
 
         mlflow.pytorch.log_model(model, 'Model')
 

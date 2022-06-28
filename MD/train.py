@@ -47,7 +47,6 @@ def prepare_data(args, mlflow):
 
     dataset_loader = []
     for i, _ in enumerate(dataset):
-        # pd.DataFrame(dataset[i].PDB_code).to_csv(f'./dataset_{i}.csv')
         dataset_loader.append(DataLoader(dataset=dataset[i], batch_size=args.batch_size, shuffle=True,
                                     num_workers=args.num_workers, collate_fn=collate_func))
 

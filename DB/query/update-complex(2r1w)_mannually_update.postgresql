@@ -1,0 +1,2 @@
+UPDATE pdbbind.available SET inavailability_type = 'empty_rsd_file', available=False WHERE pdb_code = '2r1w';
+SELECT * FROM pdbbind.available WHERE pdb_code = '2r1w'

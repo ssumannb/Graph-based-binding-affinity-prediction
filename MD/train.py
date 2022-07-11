@@ -14,9 +14,9 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from libs.io_utils import get_complex_list
-from libs.io_utils import Cached_Complex_Dataset
+from libs.io_utils import Complex_Dataset
 from libs.io_utils import collate_func
-from libs.io_utils import DatasetCache
+# from libs.io_utils import DatasetCache
 
 from libs.models import Model
 
@@ -33,8 +33,9 @@ os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 writer = SummaryWriter()
 
 def prepare_data(args, mlflow):
-    manager = Manager()
-    cache = DatasetCache(manager)
+    # manager = Manager()
+    # cache = DatasetCache(manager)
+
     # Prepare datasets and dataloaders
     dataset_list = get_complex_list(
         data_seed=args.seed,
@@ -43,10 +44,13 @@ def prepare_data(args, mlflow):
 
     dataset = []
     for i, _ in enumerate(dataset_list):
-        dataset.append(Cached_Complex_Dataset(splitted_set=dataset_list[i], cache=cache))
+        # dataset.append(Complex_Dataset(splitted_set=dataset_list[i], cache=cache))
+        dataset.append(Complex_Dataset(splitted_set=dataset_list[i]))
 
     dataset_loader = []
     for i, _ in enumerate(dataset):
+        # dataset_loader.append(DataLoader(dataset=dataset[i], batch_size=args.batch_size, shuffle=True,
+        #                             num_workers=args.num_workers, collate_fn=collate_func))
         dataset_loader.append(DataLoader(dataset=dataset[i], batch_size=args.batch_size, shuffle=True,
                                     num_workers=args.num_workers, collate_fn=collate_func))
 
@@ -294,8 +298,11 @@ def test(args, test_data, mlflow, test_configs):
     model.to(device)
 
     # load saved model
-    trained_model = torch.load('./checkpoint.pt')
-    model.load_state_dict(trained_model['model_state_dict'])
+    # trained_model = torch.load('./checkpoint.pt')
+    # model.load_state_dict(trained_model['model_state_dict'])
+    model = torch.load('./model.pth')
+    model.to(device)
+    model.eval()
     model.eval()
 
     num_data = test_data.__len__()
@@ -420,9 +427,8 @@ if __name__ == '__main__':
         test_dataset = dataset_all[2]
 
         model_configs = prepare_model(args, mlflow)
-        train(args=args, data_loader=train_data_loader, mlflow=mlflow, train_configs=model_configs)
+        # train(args=args, data_loader=train_data_loader, mlflow=mlflow, train_configs=model_configs)
         test(args=args, test_data=test_data_loader, mlflow=mlflow, test_configs=model_configs)
-        # test(args=args, test_data=test_dataset, mlflow=mlflow, test_configs=model_configs)
         writer.flush()
         writer.close()
 

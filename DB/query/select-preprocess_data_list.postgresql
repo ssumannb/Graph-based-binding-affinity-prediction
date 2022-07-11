@@ -1,0 +1,3 @@
+SELECT binding.pdb_code, pkd_pki_pic50 FROM pdbbind.binding
+INNER JOIN pdbbind.available ON binding.pdb_code = available.pdb_code
+WHERE available.available = True 

@@ -1,15 +1,12 @@
 import os
-import glob
 import warnings
 import pickle
 import torch
 import dgl
 import pandas as pd
-import numpy as np
-
-from multiprocessing import Manager
 
 from DB.libs.db_utils import Connect2pgSQL as pgDB
+
 
 def get_atom_coord(data):
     return data.GetConformer().GetPositions().tolist()
@@ -79,91 +76,33 @@ def get_complex_list(data_seed=999, frac=[0.8, 0.2], dataset_name='None'):
     return complex_dataset_list
 
 
-
-class DatasetCache(object):
-    def __init__(self, manager, use_cache=True):
-        self.use_cache = use_cache
-        self.manager = manager
-        self._dict = manager.dict()
-
-    def is_cached(self, key):
-        if not self.use_cache:
-            return False
-        return str(key) in self._dict
-
-    def reset(self):
-        self._dict.clear()
-
-    def get(self, key):
-        if not self.use_cache:
-            raise AttributeError('Data caching is disabled and get funciton is unavailable! Check your config.')
-        return self._dict[str(key)]
-
-    def cache(self, key, graph, lbl):
-        # only store if full data in memory is enabled
-        if not self.use_cache:
-            return
-        # only store if not already cached
-        if str(key) in self._dict:
-            return
-        self._dict[str(key)] = (graph, lbl)
-
-
-
-class Cached_Complex_Dataset(torch.utils.data.Dataset):
-    def __init__(self, cache,  # cached
-                 splitted_set,
-                 preprocess=None, transform=None, # cached
-                 training=True, dataset_name='v2020', use_cache=False):
+class Complex_Dataset(torch.utils.data.Dataset):
+    def __init__(self, splitted_set, training=True, dataset_name='v2020'):
         self.call_count = 0  # for iteration
-        self.use_cache = use_cache
+        # param splitted_set: [PDB_id, binding affinity value]
+
         self.PDB_code = list(splitted_set['PDB_code'])
         self.label = list(splitted_set['plog_affinity'])
+        # self.path = f'D:/Data/PDBbind/HD011/model_input/_coreset/graph/{dataset_name}'
         self.path = f'D:/Data/PDBbind/HD011/model_input/training/graph/{dataset_name}'
         if training == False:
             self.path = f'D:/Data/PDBbind/HD011/model_input/external_validation/graph/{dataset_name}'
+            # self.path = f'D:/Data/PDBbind/HD011/model_input/training/graph/v2020'
+            # self.path = f'D:/Data/PDBbind/HD011/model_input/_coreset/graph'
         if not os.path.isdir(self.path):
             raise FileNotFoundError(f'There is no folder in this location : {self.path}')
 
-        self.cache = cache
-        self.preprocess = preprocess
-        self.transform = transform
-        self.fnames = []
-        self.labels = []
-
-        for idx, row in splitted_set.iterrows():
-            self.fnames.append(row['PDB_code'])
-            self.labels.append(np.array([row['plog_affinity']]))
-
-    def set_use_cache(self, use_cache):
-        if use_cache:
-            self.cache_data = torch.stack(self.cached_data)
-        else:
-            self.cached_data = []
-        self.use_cache = use_cache
-
-    def reset_memory(self):
-        self.cache.reset()
 
     def __len__(self):
         return len(self.PDB_code)
 
     def __getitem__(self, item):
-        if self.cache.is_cached(item):
-            graphs, self.label[item] = self.cache.get(item)
-        else:
-            fname = self.fnames[item]
-            graphs = None,
-            try:
-                os.path.isfile(f'{self.path}/{self.PDB_code[item]}.pkl')
-                with open(f'{self.path}/{self.PDB_code[item]}.pkl', 'rb') as f:
-                    graphs = pickle.load(f)
-
-                self.cache.cache(item, graphs, self.label[item])
-                # self.cached_data.append([graphs, self.label[item]])
-
-            except:
-                raise ValueError(f"\n<!> no graph file: {self.path}/{self.PDB_code[item]}.pkl")
+        try:
+            os.path.isfile(f'{self.path}/{self.PDB_code[item]}.pkl')
+            with open(f'{self.path}/{self.PDB_code[item]}.pkl', 'rb') as f:
+                graphs = pickle.load(f)
+        except:
+            raise ValueError(f"\n<!> no graph file: {self.path}/{self.PDB_code[item]}.pkl")
 
         return graphs, self.label[item]
 

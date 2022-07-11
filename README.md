@@ -73,13 +73,13 @@ In the graph converting part, the proteins and ligands are converted to graphs, 
  
 
 <p align="center">
-<img src="https://user-images.githubusercontent.com/86610517/177702493-3b2d755f-cd2a-460e-b115-909845410949.png" height="50%" width="50%" alt><br>
+<img src="https://user-images.githubusercontent.com/86610517/177702493-3b2d755f-cd2a-460e-b115-909845410949.png" height="55%" width="55%" alt><br>
 <em>Steps for converting a molecule to the graph</em><br>
 </p><br>  
   
    
 <p align="center">
-<img src="https://user-images.githubusercontent.com/86610517/177702430-dac69fbf-de7b-4b36-98ac-4f1e3238165b.png" height="50%" width="50%" alt><br>
+<img src="https://user-images.githubusercontent.com/86610517/177702430-dac69fbf-de7b-4b36-98ac-4f1e3238165b.png" height="55%" width="55%" alt><br>
 <em>Steps for converting a protein to the graph</em><br>
 </p>  
 

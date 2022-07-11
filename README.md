@@ -135,3 +135,16 @@ In the affinity calculation part, the binding affinity value of the input comple
 
 - train.py : files for training  
 - prediction.py : files for predicting   
+
+
+## Results
+- loss graphs  _(loss function : MSE loss)_
+  
+![Loss_Train](https://user-images.githubusercontent.com/86610517/178211702-88d56c6e-511d-497e-b4c3-45dd79591388.png) 
+<br><em>Train loss graphs</em><br><br>
+![Loss_Valid](https://user-images.githubusercontent.com/86610517/178211713-e63448c4-9e5a-4700-aacd-d3d7809eefa8.png)
+<br><em>Valid loss graphs</em><br>
+
+
+- Test results  
+![image](https://user-images.githubusercontent.com/86610517/178212913-765a16f8-8f63-4eb1-b30c-3571d4a13ab0.png)
